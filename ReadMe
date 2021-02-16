@@ -10,12 +10,12 @@ This script adds:
     screensaver (blanking) and brightness control from Venus GUI
     activating a local GUI
 
-This script should be run manually initally.
-It will then called from reinstallMods to reinstall functionality after a Venus update
-
 Do NOT install this package if you do not want a local display (run Venus "headless")
 
 For HDMI displays, no brightness control is possible, only screensaver
+
+This script should be run manually initally.
+It will then called from reinstallMods to reinstall functionality after a Venus update
 
 Setup:
 
