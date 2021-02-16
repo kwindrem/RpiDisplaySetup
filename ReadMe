@@ -1,0 +1,36 @@
+This package setups up for Raspberry PI 7" touchscreen display
+and also for HDMI display on HDMI 0
+
+VenusOS already includes much of the support for the RPI display
+    the touch screen calibration included in the image appears to work fine
+        even if the display is rotated 180 degrees
+    the backlight kernal module appears to be in place
+
+This script adds:
+    screensaver (blanking) and brightness control from Venus GUI
+    activating a local GUI
+
+This script should be run manually initally.
+It will then called from reinstallMods to reinstall functionality after a Venus update
+
+Do NOT install this package if you do not want a local display (run Venus "headless")
+
+For HDMI displays, no brightness control is possible, only screensaver
+
+Setup:
+
+Copy the entire repo from GitHub as a zip file to /data on the Venus device
+then unzip it. This should populate /data/VeCanSetup with the package contents.
+
+You must also install SetupHelper from here:
+
+https://github.com/kwindrem/SetupHelper-for-VenusOs
+
+Once both packages are installed run setup and follow the prompts.
+./setup
+
+You will need root access to the Venus device. Instructions can be found here:
+https://www.victronenergy.com/live/ccgx:root_access
+The root password needs to be reentered following a Venus update.
+Setting up an authorization key (see documentation referenced above) will save time and avoid having to reset the root password after each update.
+

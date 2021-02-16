@@ -1,0 +1,182 @@
+#!/bin/bash
+
+# setup for Raspberry PI 7" touchscreen display
+# also supports HDMI display on HDMI 0
+
+# Much is already installed and set up for this display
+#  the touch screen calibration included in the image appears to work fine
+#  even if the display is rotated 180 degrees
+#  the backlight kernal module appears to be in place
+# what remains is the screensaver (blanking) and brightness control from Venus GUI
+# and activating a local GUI
+#
+# Do NOT install this package if you do not want a local display (run Venus "headless")
+#
+# for HDMI displays, no brightness control is possible, only screensaver
+#
+# run manually initally, then called from reinstallMods after a Venus update
+# to uninstall/deactivate, call this script with "uninstall" as first parameter
+#
+# /u-boot/config.txt modified to remove references to "framebuffer" which isn't needed, even for the RPI display
+# and to insure overscan is not active
+# and and hdmi_blanking is enabled so RPI display will power down during screen saver
+# Note: the display will take longer to come out of screen saver if powered down
+# but if this is not done, the display backlight will remain on and be visible as a glow
+#
+# You may need to make additional changes/additions manaually to support the display in use
+#
+# Note, this script may reboot the system to comlete all operations
+# The presence of the RPI display requires the rpi-backlight overlay
+# Modifications to config.txt may be needed and the system must reboot to activate those changes
+# A reboot is required to activate the overlay and the config.txt changes
+
+headlessFlag=/etc/venus/headless
+restartGui=false
+rpiDisplay=false
+overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
+
+# no log file for this package
+packageLogFile=""
+
+#### following lines incorporate SetupHelper utilities into this script
+# Refer to the SetupHelper ReadMe file for details.
+    
+source "/data/SetupHelper/CommonResources"
+
+if [ $scriptAction == 'EXIT' ] ; then
+    exit
+fi
+
+checkFileSets
+
+#### end of lines to include SetupHelper
+
+#### running manually and OK to proceed - prompt for input
+if [ $scriptAction == 'NONE' ] ; then
+    # display innitial message
+    echo
+    echo "This package sets up the Raspberry PI for the offical RPI touchscreen"
+    echo "and for an HDMI touchscreen"
+    echo "Some hand editing of config.txt may be needed for an HDMI display"
+
+    standardActionPrompt
+fi
+
+
+
+#### installing
+if [ $scriptAction == 'INSTALL' ] ; then
+    logMessage "++ Installing RPI display enhancements"
+    # modify config.txt
+    # make sure hdmi_blanking is enabled
+    # ditto for disable_overscan
+    # remove lines with framebuffer - not needed even with RPI display
+    # remoe duplicate lines (awk)
+
+    sed -e 's/^#* *hdmi_blanking[ =][01]/hdmi_blanking=1/'\
+        -e 's/^#* *disable_overscan[ =][01]/disable_overscan=1/'\
+        -e '/framebuffer/d;' "$configFile" | awk '!NF || !seen[$0]++' > "$configFile.tmp"
+
+    # insert missing lines
+    if [ $(grep -c "disable_overscan=1" $configFile.tmp) == 0 ] ; then
+        logMessage "adding disable_overscan"
+        echo "" >> "$configFile.tmp"
+        echo "# no overscan" >> "$configFile.tmp"
+        echo "disable_overscan=1" >> "$configFile.tmp"
+    fi
+    if [ $(grep -c "hdmi_blanking=1" "$configFile.tmp") == 0 ] ; then
+        logMessage "adding hdmi_blanking"
+        echo "" >> "$configFile.tmp"
+        echo "# allow HDMI display to enter low powr mode" >> "$configFile.tmp"
+        echo "hdmi_blanking=1" >> "$configFile.tmp"
+    fi
+
+    # detect changes
+    $(cmp -s $configFile $configFile.tmp > /dev/null )
+    if [ $? -eq 1 ]; then
+        updateActiveFile "$configFile.tmp" "$configFile"
+        if $thisFileUpdated ; then
+            logMessage "updating config.txt"
+            rebootNeeded=true
+            runAgain=true
+        fi
+    else
+        rm $configFile.tmp
+    fi
+
+    # install backlight overlay before doing any other installs
+    # once the overlay is active
+    # we can set up the proper brightness and blanking devices
+    copyToActiveFile "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
+    if $thisFileUpdated ; then
+        logMessage "installed RPI Display Backlight overlay"
+        rebootNeeded=true
+        runAgain=true
+    fi
+
+    # OK to proceed
+    if [ $scriptAction == 'INSTALL' ] ; then
+        # check to see if RPI display is attached
+        if [ -e /sys/class/backlight/rpi_backlight ] ; then
+            rpiDisplay=true
+        fi
+
+        # enable screen saver (blanking) from the Venus
+        device=/etc/venus/blank_display_device
+        if $rpiDisplay ; then
+            if [ ! -e $device ] || [ $(grep -c "rpi_backlight" $device) == 0 ]; then
+                logMessage "setting up display blanking for RPI display"
+                echo "/sys/class/backlight/rpi_backlight/bl_power" > $device
+                restartGui=true
+            fi
+        else
+            if [ ! -e $device ] || [ $(grep -c "fb0" $device) == 0 ]; then
+                logMessage "setting up display blanking for HDMI display"
+                echo "/sys/class/graphics/fb0/blank" > $device
+                restartGui=true
+            fi
+        fi
+
+        # enable display brightness only for RPI display
+        device=/etc/venus/backlight_device
+        if $rpiDisplay ; then
+            if [ ! -e $device ]; then
+                logMessage "setting up brightness control"
+                echo "/sys/class/backlight/rpi_backlight" > $device
+                restartGui=true
+            fi
+        # no RPI display - disable display brightness
+        elif [ -e $device ]; then
+            logMessage "disabling display brightness - not supported for HDMI displays"
+            rm $device
+        fi
+
+        # remove the headless flag to allow a local display
+        if [ -e $headlessFlag ] ; then
+            logMessage "activating local GUI"
+            rm $headlessFlag
+            restartGui=true
+        fi
+    fi
+fi
+#### uninstalling - check scriptAction again
+# if an install step failed package needs to be removed
+if [ $scriptAction == 'UNINSTALL' ] ; then
+    logMessage "++ Uninstalling RPI display enhancements"
+    device=/etc/venus/blank_display_device
+    if [ -e $device ]; then
+        logMessage "disabling display blanking"
+        rm -f $device
+        filesUpdated=true
+    fi
+    device=/etc/venus/backlight_device
+    if [ -e $device ]; then
+        logMessage "disabling display backlight control"
+        rm -f $device
+        filesUpdated=true
+    fi
+fi
+
+#thats all folks - SCRIPT EXITS INSIDE THE FUNCTION
+endScript
+
