@@ -107,7 +107,7 @@ if [ $scriptAction == 'INSTALL' ] ; then
     # install backlight overlay before doing any other installs
     # once the overlay is active
     # we can set up the proper brightness and blanking devices
-    copyToActiveFile "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
+    updateActiveFile "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
     if $thisFileUpdated ; then
         logMessage "installed RPI Display Backlight overlay"
         rebootNeeded=true
