@@ -6,13 +6,13 @@
 # Much is already installed and set up for this display
 #  the touch screen calibration included in the image appears to work fine
 #  even if the display is rotated 180 degrees
-#  the backlight kernal module appears to be in place
 # what remains is the screensaver (blanking) and brightness control from Venus GUI
 # and activating a local GUI
 #
 # Do NOT install this package if you do not want a local display (run Venus "headless")
 #
 # for HDMI displays, no brightness control is possible, only screensaver
+# and some displays may not turn off the backlight when blanked, but a black screen will be displayed
 #
 # run manually initally, then called from reinstallMods after a Venus update
 # to uninstall/deactivate, call this script with "uninstall" as first parameter
@@ -32,7 +32,6 @@
 
 headlessFlag=/etc/venus/headless
 restartGui=false
-rpiDisplay=false
 overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
 
 # no log file for this package
@@ -56,22 +55,35 @@ if [ $scriptAction == 'NONE' ] ; then
     # display innitial message
     echo
     echo "This package sets up the Raspberry PI for the offical RPI touchscreen"
-    echo "and for an HDMI touchscreen"
+    echo "and for some other DSI or HDMI displays"
     echo "Some hand editing of config.txt may be needed for an HDMI display"
 
     standardActionPrompt
+    if [ $scriptAction == 'INSTALL' ] ; then
+        echo
+        echo "If display has no backlight control, the screen saver will switch to a black screen"
+        echo "with the backlight still on"
+        echo "If display brightness does not work you can reinstall the package and choose no here"
+        echo "to hide the controls in the GUI"
+        echo
+        yesNoPrompt "Do you wish to install the dimming brightness control (y/n): "
+        if $yesResponse ; then
+            touch $scriptDir/installDimming
+        else
+            rm -f $scriptDir/installDimming
+        fi
+    fi
 fi
-
 
 
 #### installing
 if [ $scriptAction == 'INSTALL' ] ; then
     logMessage "++ Installing RPI display enhancements"
     # modify config.txt
-    # make sure hdmi_blanking is enabled
-    # ditto for disable_overscan
-    # remove lines with framebuffer - not needed even with RPI display
-    # remoe duplicate lines (awk)
+    #   make sure hdmi_blanking is enabled
+    #   ditto for disable_overscan
+    #   remove lines with framebuffer - not needed even with RPI display
+    #   remoe duplicate lines
 
     sed -e 's/^#* *hdmi_blanking[ =][01]/hdmi_blanking=1/'\
         -e 's/^#* *disable_overscan[ =][01]/disable_overscan=1/'\
@@ -98,7 +110,6 @@ if [ $scriptAction == 'INSTALL' ] ; then
         if $thisFileUpdated ; then
             logMessage "updating config.txt"
             rebootNeeded=true
-            runAgain=true
         fi
     else
         rm $configFile.tmp
@@ -107,56 +118,41 @@ if [ $scriptAction == 'INSTALL' ] ; then
     # install backlight overlay before doing any other installs
     # once the overlay is active
     # we can set up the proper brightness and blanking devices
-    updateActiveFile "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
-    if $thisFileUpdated ; then
+    if [ ! -f "$overlayFile" ]; then
         logMessage "installed RPI Display Backlight overlay"
+        cp "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
         rebootNeeded=true
-        runAgain=true
     fi
 
-    # OK to proceed
-    if [ $scriptAction == 'INSTALL' ] ; then
-        # check to see if RPI display is attached
-        if [ -e /sys/class/backlight/rpi_backlight ] ; then
-            rpiDisplay=true
-        fi
+    # enable screen saver (blanking) from the Venus
+    # using a generic hook that should at least partially work on all displays
+    device=/etc/venus/blank_display_device
+    if [ ! -e $device ] || [ $(grep -c "fb0" $device) == 0 ]; then
+        logMessage "setting up display blanking"
+        echo "/sys/class/graphics/fb0/blank" > $device
+        restartGui=true
+    fi
 
-        # enable screen saver (blanking) from the Venus
-        device=/etc/venus/blank_display_device
-        if $rpiDisplay ; then
-            if [ ! -e $device ] || [ $(grep -c "rpi_backlight" $device) == 0 ]; then
-                logMessage "setting up display blanking for RPI display"
-                echo "/sys/class/backlight/rpi_backlight/bl_power" > $device
-                restartGui=true
-            fi
-        else
-            if [ ! -e $device ] || [ $(grep -c "fb0" $device) == 0 ]; then
-                logMessage "setting up display blanking for HDMI display"
-                echo "/sys/class/graphics/fb0/blank" > $device
-                restartGui=true
-            fi
-        fi
-
-        # enable display brightness only for RPI display
-        device=/etc/venus/backlight_device
-        if $rpiDisplay ; then
-            if [ ! -e $device ]; then
-                logMessage "setting up brightness control"
-                echo "/sys/class/backlight/rpi_backlight" > $device
-                restartGui=true
-            fi
-        # no RPI display - disable display brightness
-        elif [ -e $device ]; then
-            logMessage "disabling display brightness - not supported for HDMI displays"
-            rm $device
-        fi
-
-        # remove the headless flag to allow a local display
-        if [ -e $headlessFlag ] ; then
-            logMessage "activating local GUI"
-            rm $headlessFlag
+    # enable display brightness only for RPI display
+    device=/etc/venus/backlight_device
+    if [ -f $scriptDir/installDimming ] ; then
+        if [ ! -e $device ]; then
+            logMessage "setting up brightness control"
+            echo "/sys/class/backlight/rpi_backlight" > $device
             restartGui=true
         fi
+    # no RPI display - disable display brightness
+    elif [ -e $device ]; then
+        logMessage "disabling display brightness"
+        rm $device
+        restartGui=true
+    fi
+
+    # remove the headless flag to allow a local display
+    if [ -e $headlessFlag ] ; then
+        logMessage "activating local GUI"
+        rm $headlessFlag
+        restartGui=true
     fi
 fi
 #### uninstalling - check scriptAction again
@@ -167,13 +163,13 @@ if [ $scriptAction == 'UNINSTALL' ] ; then
     if [ -e $device ]; then
         logMessage "disabling display blanking"
         rm -f $device
-        filesUpdated=true
+        restartGui=true
     fi
     device=/etc/venus/backlight_device
     if [ -e $device ]; then
         logMessage "disabling display backlight control"
         rm -f $device
-        filesUpdated=true
+        restartGui=true
     fi
 fi
 

@@ -1,5 +1,6 @@
 This package setups up for Raspberry PI 7" touchscreen display
 and also for HDMI display on HDMI 0
+It may also work on other DSI displays with some or all functionality
 
 VenusOS already includes much of the support for the RPI display
     the touch screen calibration included in the image appears to work fine
@@ -12,10 +13,15 @@ This script adds:
 
 Do NOT install this package if you do not want a local display (run Venus "headless")
 
-For HDMI displays, no brightness control is possible, only screensaver
+For some displays, no brightness control is possible, only screensaver
+Some displays have no backlight control. The screen will go black but may still glow if backlight remains on
 
 This script should be run manually initally.
 It will then called from reinstallMods to reinstall functionality after a Venus update
+
+The script provides an option to install brightness control. 
+If the display does not dim, you can run this script again and choose not to install it.
+This will hide the brightness controls in the GUI
 
 Setup:
 
@@ -45,7 +51,6 @@ mv current.tar.gz SetupHelper.tar.gz
 
 Once both packages are installed run setup and follow the prompts.
 /data/RpiDisplaySetup/setup
-
 
 You will need root access to the Venus device. Instructions can be found here:
 https://www.victronenergy.com/live/ccgx:root_access
