@@ -136,12 +136,12 @@ if [ $scriptAction == 'INSTALL' ] ; then
     # enable display brightness only for RPI display
     device=/etc/venus/backlight_device
     if [ -f $scriptDir/installDimming ] ; then
-        if [ ! -e $device ]; then
+        if [ ! -e $device ] || [ $(grep -c "rpi_backlight" $device) == 0 ]; then
             logMessage "setting up brightness control"
             echo "/sys/class/backlight/rpi_backlight" > $device
             restartGui=true
         fi
-    # no RPI display - disable display brightness
+    # disable display brightness
     elif [ -e $device ]; then
         logMessage "disabling display brightness"
         rm $device
