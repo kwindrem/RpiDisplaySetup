@@ -58,8 +58,8 @@ if [ $scriptAction == 'NONE' ] ; then
     echo "and for some other DSI or HDMI displays"
     echo "Some hand editing of config.txt may be needed for an HDMI display"
 
-    standardActionPrompt
-    if [ $scriptAction == 'INSTALL' ] ; then
+    standardActionPrompt enableReinstall
+    if [ $scriptAction == 'PROMPT' ] ; then
         echo
         echo "If display has no backlight control, the screen saver will switch to a black screen"
         echo "with the backlight still on"
@@ -72,6 +72,7 @@ if [ $scriptAction == 'NONE' ] ; then
         else
             rm -f $scriptDir/installDimming
         fi
+        scriptAction='INSTALL'
     fi
 fi
 
