@@ -1,5 +1,5 @@
 This package setups up for Raspberry PI 7" touchscreen display
-and also for HDMI display on HDMI 0
+and also for HDMI display on HDMI 0 or HDMI 1
 It may also work on other DSI displays with some or all functionality
 
 VenusOS already includes much of the support for the RPI display
@@ -13,15 +13,18 @@ This script adds:
 
 Do NOT install this package if you do not want a local display (run Venus "headless")
 
-For some displays, no brightness control is possible, only screensaver
-Some displays have no backlight control. The screen will go black but may still glow if backlight remains on
 
 This script should be run manually initally.
 It will then called from reinstallMods to reinstall functionality after a Venus update
 
-The script provides an option to install brightness control. 
-If the display does not dim, you can run this script again and choose not to install it.
-This will hide the brightness controls in the GUI
+The script asks for the display type / HDMI port (0 is closest to the power connector)
+which controls which display the GUI attempts to control for screen saver and dimming
+
+Only the RPI touchscreen supports dimming (other DSI displays might also)
+while HDMI does not support any dimming mechanism.
+
+Some HDMI displays have no backlight control. In this case the screen will go black 
+but may still glow if backlight remains on
 
 Setup:
 
@@ -32,7 +35,7 @@ mv /data/RpiDisplaySetup-current /data/RpiDisplaySetup
 
 If not, run the following commands on a computer that does have internet access
 
-wget https://github.com/kwindrem/TankRepeater/archive/current.tar.gz
+wget https://github.com/kwindrem/RpiDisplaySetup/archive/current.tar.gz
 mv current.tar.gz RpiDisplaySetup.tar.gz
 
 then move the resulting .tar.gx file to a USB stick,
@@ -46,7 +49,7 @@ mv /data/SetupHelper-current /data/SetupHelper
 
 or
 
-wget https://github.com/kwindrem/TankRepeater/archive/current.tar.gz
+wget https://github.com/kwindrem/SetupHelper/archive/current.tar.gz
 mv current.tar.gz SetupHelper.tar.gz
 
 Once both packages are installed run setup and follow the prompts.
