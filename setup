@@ -26,14 +26,15 @@
 # You may need to make additional changes/additions manaually to support the display in use
 #
 # Note, this script may reboot the system to comlete all operations
-# The presence of the RPI display requires the rpi-backlight overlay
-# Modifications to config.txt may be needed and the system must reboot to activate those changes
+# Dimming the RPI display requires the rpi-backlight overlay
 # A reboot is required to activate the overlay and the config.txt changes
 
 headlessFlag=/etc/venus/headless
 restartGui=false
 overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
 
+blankDeviceFile=/etc/venus/blank_display_device
+dimDeviceFile=/etc/venus/backlight_device
 # no log file for this package
 packageLogFile=""
 
@@ -55,23 +56,38 @@ if [ $scriptAction == 'NONE' ] ; then
     # display innitial message
     echo
     echo "This package sets up the Raspberry PI for the offical RPI touchscreen"
-    echo "and for some other DSI or HDMI displays"
+    echo "  and for some other DSI or HDMI displays"
     echo "Some hand editing of config.txt may be needed for an HDMI display"
+    echo
+    echo "The screen saver will switch to a black screen"
+    echo "  with the backlight still on for HDMI displays that do not support standby"
+    echo "Display brighness controll is enabled only for the RPI touchscreen"
 
     standardActionPrompt enableReinstall
     if [ $scriptAction == 'PROMPT' ] ; then
         echo
-        echo "If display has no backlight control, the screen saver will switch to a black screen"
-        echo "with the backlight still on"
-        echo "If display brightness does not work you can reinstall the package and choose no here"
-        echo "to hide the controls in the GUI"
+        echo "This script supports the following displays:"
+        echo "    (R) Raspberry PI touchscreen"
+        echo "    (0) HDMI display connected to port 0 (closest to power connector)"
+        echo "    (1) HDMI display connected to port 1"
         echo
-        yesNoPrompt "Do you wish to install the dimming brightness control (y/n): "
-        if $yesResponse ; then
-            touch $scriptDir/installDimming
-        else
-            rm -f $scriptDir/installDimming
-        fi
+        while true ; do
+            read -p "Choose a display from the list above (R / 0 / 1): " display
+            case $display in
+                [rR]*)
+                    echo "RPI" > $scriptDir/displayToControl
+                    break
+                    ;;
+                0)
+                    echo "HDMI 0" > $scriptDir/displayToControl
+                    break
+                    ;;
+                1)
+                    echo "HDMI 1" > $scriptDir/displayToControl
+                    break
+                    ;;
+           esac
+        done
         scriptAction='INSTALL'
     fi
 fi
@@ -79,7 +95,13 @@ fi
 
 #### installing
 if [ $scriptAction == 'INSTALL' ] ; then
-    logMessage "++ Installing RPI display enhancements"
+    if [ -f $scriptDir/displayToControl ]; then
+        displayToControl=$(cat $scriptDir/displayToControl)
+    else
+        logMessage "++ ERROR: no display specified - can't continue - install again"
+        exit
+    fi
+    logMessage "++ Installing RPI display enhancements for display: $displayToControl"
     # modify config.txt
     #   make sure hdmi_blanking is enabled
     #   ditto for disable_overscan
@@ -117,42 +139,52 @@ if [ $scriptAction == 'INSTALL' ] ; then
     fi
 
     # install backlight overlay before doing any other installs
-    # once the overlay is active
-    # we can set up the proper brightness and blanking devices
-    if [ ! -f "$overlayFile" ]; then
-        logMessage "installed RPI Display Backlight overlay"
-        cp "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
-        rebootNeeded=true
-    fi
+    case $displayToControl in
+        RPI)
+            installDimming=true
+            blankDevice="/sys/class/backlight/rpi_backlight/bl_power"
+            if [ ! -f "$overlayFile" ]; then
+                logMessage "installed RPI Display Backlight overlay"
+                cp "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
+                rebootNeeded=true
+            fi
+            ;;
+        "HDMI 0")
+            installDimming=false
+            blankDevice="/sys/class/graphics/fb0/blank"
+            ;;
+        "HDMI 1")
+            installDimming=false
+            blankDevice="/sys/class/graphics/fb1/blank"
+            ;;
+    esac
 
     # enable screen saver (blanking) from the Venus
     # using a generic hook that should at least partially work on all displays
-    device=/etc/venus/blank_display_device
-    if [ ! -e $device ] || [ $(grep -c "fb0" $device) == 0 ]; then
-        logMessage "setting up display blanking"
-        echo "/sys/class/graphics/fb0/blank" > $device
+    if [ ! -e $blankDeviceFile ] || [ $(grep -c "$blankDevice" $blankDeviceFile) == 0 ]; then
+        logMessage "setting display blanking to $blankDevice"
+        echo "$blankDevice" > $blankDeviceFile
         restartGui=true
     fi
 
     # enable display brightness only for RPI display
-    device=/etc/venus/backlight_device
-    if [ -f $scriptDir/installDimming ] ; then
-        if [ ! -e $device ] || [ $(grep -c "rpi_backlight" $device) == 0 ]; then
+    if $installDimming ; then
+        if [ ! -e $dimDeviceFile ] || [ $(grep -c "rpi_backlight" $dimDeviceFile) == 0 ]; then
             logMessage "setting up brightness control"
-            echo "/sys/class/backlight/rpi_backlight" > $device
+            echo "/sys/class/backlight/rpi_backlight" > $dimDeviceFile
             restartGui=true
         fi
     # disable display brightness
-    elif [ -e $device ]; then
+    elif [ -e $dimDeviceFile ]; then
         logMessage "disabling display brightness"
-        rm $device
+        rm -f $dimDeviceFile
         restartGui=true
     fi
 
     # remove the headless flag to allow a local display
     if [ -e $headlessFlag ] ; then
         logMessage "activating local GUI"
-        rm $headlessFlag
+        rm -f $headlessFlag
         restartGui=true
     fi
 fi
@@ -160,16 +192,14 @@ fi
 # if an install step failed package needs to be removed
 if [ $scriptAction == 'UNINSTALL' ] ; then
     logMessage "++ Uninstalling RPI display enhancements"
-    device=/etc/venus/blank_display_device
-    if [ -e $device ]; then
+    if [ -e $blankDeviceFile ]; then
         logMessage "disabling display blanking"
-        rm -f $device
+        rm -f $blankDeviceFile
         restartGui=true
     fi
-    device=/etc/venus/backlight_device
-    if [ -e $device ]; then
+    if [ -e $dimDeviceFile ]; then
         logMessage "disabling display backlight control"
-        rm -f $device
+        rm -f $dimDeviceFile
         restartGui=true
     fi
 fi
