@@ -142,9 +142,11 @@ if [ $scriptAction == 'INSTALL' ] ; then
     case $displayToControl in
         RPI)
             installDimming=true
+            logMessage "disabling AutoBrightness"
+            dbus -y com.victronenergy.settings /Settings/Gui/AutoBrightness SetValue 0 > /dev/null
             blankDevice="/sys/class/backlight/rpi_backlight/bl_power"
             if [ ! -f "$overlayFile" ]; then
-                logMessage "installed RPI Display Backlight overlay"
+                logMessage "installing RPI Display Backlight overlay"
                 cp "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
                 rebootNeeded=true
             fi
