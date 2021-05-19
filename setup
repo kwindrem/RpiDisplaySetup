@@ -43,12 +43,6 @@ packageLogFile=""
     
 source "/data/SetupHelper/CommonResources"
 
-if [ $scriptAction == 'EXIT' ] ; then
-    exit
-fi
-
-checkFileSets
-
 #### end of lines to include SetupHelper
 
 #### running manually and OK to proceed - prompt for input
@@ -63,8 +57,10 @@ if [ $scriptAction == 'NONE' ] ; then
     echo "  with the backlight still on for HDMI displays that do not support standby"
     echo "Display brighness controll is enabled only for the RPI touchscreen"
 
-    standardActionPrompt enableReinstall
-    if [ $scriptAction == 'PROMPT' ] ; then
+    standardActionPrompt 'MORE_PROMPTS'
+    # PROMPT is left over from a previous version of SetupHelper
+    #  it is included here for backward compatibility
+    if [ $scriptAction == 'NONE' ] || [ $scriptAction == 'PROMPT' ]; then
         echo
         echo "This script supports the following displays:"
         echo "    (R) Raspberry PI touchscreen"
@@ -75,15 +71,15 @@ if [ $scriptAction == 'NONE' ] ; then
             read -p "Choose a display from the list above (R / 0 / 1): " display
             case $display in
                 [rR]*)
-                    echo "RPI" > $scriptDir/displayToControl
+                    echo "RPI" > $setupOptionsDir/displayToControl
                     break
                     ;;
                 0)
-                    echo "HDMI 0" > $scriptDir/displayToControl
+                    echo "HDMI 0" > $setupOptionsDir/displayToControl
                     break
                     ;;
                 1)
-                    echo "HDMI 1" > $scriptDir/displayToControl
+                    echo "HDMI 1" > $setupOptionsDir/displayToControl
                     break
                     ;;
            esac
@@ -95,8 +91,8 @@ fi
 
 #### installing
 if [ $scriptAction == 'INSTALL' ] ; then
-    if [ -f $scriptDir/displayToControl ]; then
-        displayToControl=$(cat $scriptDir/displayToControl)
+    if [ -f $setupOptionsDir/displayToControl ]; then
+        displayToControl=$(cat $setupOptionsDir/displayToControl)
     else
         logMessage "++ ERROR: no display specified - can't continue - install again"
         exit

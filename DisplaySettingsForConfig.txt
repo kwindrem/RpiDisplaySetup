@@ -11,10 +11,6 @@ hdmi_blanking=1
 # settings for RPI 7" touchscreen
 # nothing needed - it's magic
 
-# rotate the display 180 degrees - as needed
-lcd_rotate=2
-#display_hdmi_rotate 2
-
 # setup for HDMI touchscreen
 # adjust as needed for specific display
 # check with manufacturer
