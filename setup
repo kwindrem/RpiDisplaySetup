@@ -91,6 +91,14 @@ fi
 
 #### installing
 if [ $scriptAction == 'INSTALL' ] ; then
+    # set defaults if options have not been set before
+    # RPI display
+    if [ ! -f "$setupOptionsDir/optionsSet" ]; then
+        logMessage "install selected but no options have been set - using defaults"
+        echo "RPI" > "$setupOptionsDir/displayToControl"
+        touch "$setupOptionsDir/optionsSet"
+    fi
+
     if [ -f $setupOptionsDir/displayToControl ]; then
         displayToControl=$(cat $setupOptionsDir/displayToControl)
     else
