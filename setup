@@ -32,6 +32,7 @@
 headlessFlag=/etc/venus/headless
 restartGui=false
 overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
+configFile="/u-boot/config.txt"
 
 blankDeviceFile=/etc/venus/blank_display_device
 dimDeviceFile=/etc/venus/backlight_device
@@ -44,6 +45,28 @@ packageLogFile=""
 source "/data/SetupHelper/CommonResources"
 
 #### end of lines to include SetupHelper
+
+# prevent installing if not a Raspberry Pi
+if [ -f /etc/venus/machine ]; then
+    machine=$(cat /etc/venus/machine)
+fi
+if [ -z $machine ]; then
+    if [ -f "$installedFlag" ]; then
+        logMessage "can't determine Venus device type - uninstalling"
+        scriptAction='UNINSTALL'
+    else
+        logMessage "can't determine Venus device type - exiting"
+        exit
+    fi
+elif [ $machine != "raspberrypi2" ] && [ $machine != "raspberrypi4" ]; then
+    if [ -f "$installedFlag" ]; then
+        logMessage "$packageName not compatible with $machine - uninstalling"
+        scriptAction='UNINSTALL'
+    else
+        logMessage "$packageName not compatible with $machine - exiting"
+        exit
+    fi
+fi
 
 #### running manually and OK to proceed - prompt for input
 if [ $scriptAction == 'NONE' ] ; then
