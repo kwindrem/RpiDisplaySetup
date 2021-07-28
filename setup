@@ -199,7 +199,7 @@ if [ $scriptAction == 'INSTALL' ] ; then
     # enable display brightness only for RPI display
     if $installDimming ; then
         logMessage "resetting /Settings/Gui/Brightness max for the RPI display (255)"
-        dbus -y com.victronenergy.settings /Settings AddSettings '%[{"path": "/Gui/Brightness", "default":255, "min":0, "max":255}]' > / dev/null
+        dbus -y com.victronenergy.settings /Settings AddSettings '%[{"path": "/Gui/Brightness", "default":255, "min":0, "max":255}]' > /dev/null
         if [ ! -e $dimDeviceFile ] || [ $(grep -c "rpi_backlight" $dimDeviceFile) == 0 ]; then
             logMessage "setting up brightness control"
             echo "/sys/class/backlight/rpi_backlight" > $dimDeviceFile
