@@ -7,9 +7,10 @@ VenusOS already includes much of the support for the RPI display
         even if the display is rotated 180 degrees
     the backlight kernal module appears to be in place
 
-This script adds:
-    screensaver (blanking) and brightness control from Venus GUI
-    activating a local GUI
+This script:
+    adds screensaver (blanking) and brightness control from Venus GUI
+    adds activating a local GUI
+    resets the max and default values for /Settings/Gui/Brightness to accommodate the RPI display max of 255
 
 Do NOT install this package if you do not want a local display (run Venus "headless")
 
