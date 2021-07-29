@@ -33,6 +33,7 @@ headlessFlag=/etc/venus/headless
 restartGui=false
 overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
 configFile="/u-boot/config.txt"
+guiStartFile="/opt/victronenergy/gui/start-gui.sh"
 
 blankDeviceFile=/etc/venus/blank_display_device
 dimDeviceFile=/etc/venus/backlight_device
@@ -198,6 +199,8 @@ if [ $scriptAction == 'INSTALL' ] ; then
 
     # enable display brightness only for RPI display
     if $installDimming ; then
+        updateActiveFile "$guiStartFile"
+
         logMessage "resetting /Settings/Gui/Brightness max for the RPI display (255)"
         dbus -y com.victronenergy.settings /Settings AddSettings '%[{"path": "/Gui/Brightness", "default":255, "min":0, "max":255}]' > /dev/null
         if [ ! -e $dimDeviceFile ] || [ $(grep -c "rpi_backlight" $dimDeviceFile) == 0 ]; then
@@ -231,6 +234,7 @@ if [ $scriptAction == 'UNINSTALL' ] ; then
     fi
     if [ -e $dimDeviceFile ]; then
         logMessage "disabling display backlight control"
+        restoreActiveFile "$guiStartFile"
         rm -f $dimDeviceFile
         restartGui=true
     fi
