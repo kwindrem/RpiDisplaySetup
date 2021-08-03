@@ -2,6 +2,8 @@
 exec 2>&1
 echo "*** Starting gui ***"
 
+######## modified to reset RPI display brightness max to 255
+
 # when headless:
 # - vnclocal: force-enable it, so a user can never lock himself out. And, if there is no
 #   pwd-file yet, create an empty one
@@ -66,7 +68,7 @@ vncinternet="$(dbus-send --system --print-reply --dest=com.victronenergy.setting
 
 scriptdir=$(dirname "$BASH_SOURCE")
 
-# reset brightness range after GUI starts
+######### reset brightness range after GUI starts
 nohup sleep 1; dbus -y com.victronenergy.settings /Settings AddSettings '%[{"path": "/Gui/Brightness", "default":255, "min":0, "max":255}]' > /dev/null &
 
 if [ "$vnclocal" = "1" ] || [ "$vncinternet" = "1" ]; then

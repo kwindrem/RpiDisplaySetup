@@ -1,6 +1,5 @@
 #!/bin/bash
 exec 2>&1
-echo "*** Starting gui ***"
 
 ######## modified to reset RPI display brightness max to 255
 
@@ -78,3 +77,4 @@ else
 	echo "*** Starting gui, with VNC disabled (VncLocal=$vnclocal VncInternet=$vncinternet)"
 	exec ${scriptdir}/gui $mouse
 fi
+
