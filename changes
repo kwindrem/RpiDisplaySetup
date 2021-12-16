@@ -1,0 +1,4 @@
+v2.2:
+	added raspberryPiOnly flag file
+	added display type auto-discovery for blind installs from Package Manager
+	removed manual GitHub download/install instructions from ReadMe

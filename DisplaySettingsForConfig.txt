@@ -5,7 +5,7 @@ lcd_rotate=2
 # no overscan
 disable_overscan=1
 
-# allow HDMI isplay to enter low powr mode
+# allow HDMI display to enter low powr mode
 hdmi_blanking=1
 
 # settings for RPI 7" touchscreen

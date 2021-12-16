@@ -12,53 +12,27 @@ This script:
     adds activating a local GUI
     resets the max and default values for /Settings/Gui/Brightness to accommodate the RPI display max of 255
 
-Do NOT install this package if you do not want a local display (run Venus "headless")
+Do NOT install this package if you do NOT want a local display (running Venus "headless")
 
+This script is designed to run without any command line interaction e.g., from the Package Manager in the GUI
+	Without the command line, this script discovers the display type automatically.
+	The package must be partially installed, then Venus rebooted in order to discover the display type
+		and finish the installation.
+	Note: that HDMI 1 can not be auto-discovered -- only RPI and HDMI 0.
+		I'm actually not sure if HDMI 1 is supported at all in Venus OS!!
 
-This script should be run manually initally.
-It will then called from reinstallMods to reinstall functionality after a Venus update
+The script can also be run from the command line.
+	The user is prompted for display type: RPI, HDMI 0 or HDMI 1, skipping the auto-discovery mechanism.
 
-The script asks for the display type / HDMI port (0 is closest to the power connector)
-which controls which display the GUI attempts to control for screen saver and dimming
+This script will also be called from reinstallMods to reinstall functionality after a Venus update
 
 Only the RPI touchscreen supports dimming (other DSI displays might also)
-while HDMI does not support any dimming mechanism.
+	while HDMI does not support any dimming mechanism.
 
 Some HDMI displays have no backlight control. In this case the screen will go black 
 but may still glow if backlight remains on
 
 Setup:
 
-The easiest way to install this or other of my packages is to first install SetupHelper,
-then use its package install tool. Refer to the SetupHelper ReadMe for instructions.
-
-There are two other methods to fetch a package archive.
-
-IF the Venus device has internet access is to run the following command:
-
-wget -qO - https://github.com/kwindrem/RpiDisplaySetup/archive/current.tar.gz | tar -xzf - -C /data
-
-If the Venus device does not have internet access, you will need to fetch the archive using a computer that does have internet access:
-
-click on this link in a web browser:
-https://github.com/kwindrem/RpiDisplaySetup/archive/current.tar.gz
-
-rename the resulting .tar.gz file to venus-data.tar.gz
-copy the venus-data.tar.gz to a USB stick,
-put the stick in the Venus device and reboot.
-When Venus boots, it will unarchive the file to /data/RpiDisplaySetup-current
-
-Move the directory into it's active locaiton:
-rm -rf /data/RpiDisplaySetup
-mv /data/RpiDisplaySetup-current /data/RpiDisplaySetup
-
-Repeat the above for SetupHelper if you haven't done so for another package.
-
-Finally, run the setup script to complete the installation
-/data/RpiDisplaySetup/setup
-
-You will need root access to the Venus device. Instructions can be found here:
-https://www.victronenergy.com/live/ccgx:root_access
-The root password needs to be reentered following a Venus update.
-Setting up an authorization key (see documentation referenced above) will save time and avoid having to reset the root password after each update.
-
+The easiest way to install this or other of my packages is to first install SetupHelper (v4.0 or later),
+then use Package Manager from the GUI. Refer to the SetupHelper ReadMe for instructions.
