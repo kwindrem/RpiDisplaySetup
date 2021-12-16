@@ -1,4 +1,6 @@
-v2.2:
+v3.4
 	added raspberryPiOnly flag file
-	added display type auto-discovery for blind installs from Package Manager
-	removed manual GitHub download/install instructions from ReadMe
+	add graceful shutdown GPIO pin - used by ShutdownMonitor v2.0 or later
+	add exit codes
+	this supports SetupHelper v4
+	removed manual download/install instructions from the ReadMe

@@ -1,42 +1,31 @@
 #!/bin/bash
 
-# setup for Raspberry PI 7" touchscreen display
-# also supports HDMI display on HDMI 0
+# adds additional digital inputs and relay outputs to the Raspberry Pi platforms
 
-# Much is already installed and set up for this display
-#  the touch screen calibration included in the image appears to work fine
-#  even if the display is rotated 180 degrees
-# what remains is the screensaver (blanking) and brightness control from Venus GUI
-# and activating a local GUI
+# the stock RPI Venus distribution includes two relays and two digital inputs
+# adding the additional GPIO pins to /etc/venus/gpio_list
+# makes additional digital inputs available
+# all 5 defined digital inputs are activated by this script
 #
-# Do NOT install this package if you do not want a local display (run Venus "headless")
+# the Raspberry PI default is for the first 8 GPIO pins to have pull UPs
+# and the remaining have pull DOWNs. This makes some digital input pins behave differently
+# this script also installs a DT overlay that switches to pull UPs for all digital input pins
 #
-# for HDMI displays, no brightness control is possible, only screensaver
-# and some displays may not turn off the backlight when blanked, but a black screen will be displayed
-#
-# run manually initally, then called from reinstallMods after a Venus update
+# Only the first relay can be assigned to a function: alarm, genertor start/stop or pump.
+# Others are only provided manual on/off control from the menu.
+# Six relays are supported. Only the first relay can be assigned to functions
+# The remaining relays are manual on/off only.
+
+# run manually initally, then called from reinstallMods
 # to uninstall/deactivate, call this script with "uninstall" as first parameter
-#
-# /u-boot/config.txt modified to remove references to "framebuffer" which isn't needed, even for the RPI display
-# and to insure overscan is not active
-# and and hdmi_blanking is enabled so RPI display will power down during screen saver
-# Note: the display will take longer to come out of screen saver if powered down
-# but if this is not done, the display backlight will remain on and be visible as a glow
-#
-# You may need to make additional changes/additions manaually to support the display in use
-#
-# Note, this script may reboot the system to comlete all operations
-# Dimming the RPI display requires the rpi-backlight overlay
-# A reboot is required to activate the overlay and the config.txt changes
 
-headlessFlag=/etc/venus/headless
-restartGui=false
-overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
+# Note, this script DOES require a system reboot.
+
+gpioListFile="/etc/venus/gpio_list"
+overlayFile="/u-boot/overlays/VenusGpioOverlay.dtb"
+relayStateFile="/opt/victronenergy/dbus-systemcalc-py/delegates/relaystate.py"
 configFile="/u-boot/config.txt"
-guiStartFile="/opt/victronenergy/gui/start-gui.sh"
 
-blankDeviceFile=/etc/venus/blank_display_device
-dimDeviceFile=/etc/venus/backlight_device
 # no log file for this package
 packageLogFile=""
 
@@ -58,7 +47,7 @@ if [ -z $machine ]; then
         scriptAction='UNINSTALL'
     else
         logMessage "can't determine Venus device type - exiting"
-        exit $EXIT_INCOMPATIBLE_PLATFOM
+		exit $INCOMPATIBLE_PLATFORM
     fi
 elif [ $machine != "raspberrypi2" ] && [ $machine != "raspberrypi4" ]; then
     if [ -f "$installedFlag" ]; then
@@ -66,7 +55,7 @@ elif [ $machine != "raspberrypi2" ] && [ $machine != "raspberrypi4" ]; then
         scriptAction='UNINSTALL'
     else
         logMessage "$packageName not compatible with $machine - exiting"
-        exit $EXIT_INCOMPATIBLE_PLATFOM
+		exit $INCOMPATIBLE_PLATFORM
     fi
 fi
 
@@ -74,202 +63,53 @@ fi
 if [ $scriptAction == 'NONE' ] ; then
     # display innitial message
     echo
-    echo "This package sets up the Raspberry PI for the offical RPI touchscreen"
-    echo "  and for some other DSI or HDMI displays"
-    echo "Some hand editing of config.txt may be needed for an HDMI display"
-    echo
-    echo "The screen saver will switch to a black screen"
-    echo "  with the backlight still on for HDMI displays that do not support standby"
-    echo "Display brighness controll is enabled only for the RPI touchscreen"
+    echo "This package makes the following modifications:"
+    echo "  Activates all 5 predefined digital inputs"
+    echo "  Changes all digital inputs to have pull-ups in stead of a mix of pull up/down"
 
-    standardActionPrompt 'MORE_PROMPTS'
-    # PROMPT is left over from a previous version of SetupHelper
-    #  it is included here for backward compatibility
-    if [ $scriptAction == 'NONE' ] || [ $scriptAction == 'PROMPT' ]; then
-        echo
-        echo "This script supports the following displays:"
-        echo "    (R) Raspberry PI touchscreen (DSI)"
-        echo "    (0) HDMI display connected to port 0 (closest to power connector)"
-        echo "    (1) HDMI display connected to port 1"
-        echo
-        while true ; do
-            read -p "Choose a display from the list above (R / 0 / 1): " display
-            case $display in
-                [rR]*)
-                    echo "RPI" > $setupOptionsDir/displayToControl
-                    break
-                    ;;
-                0)
-                    echo "HDMI 0" > $setupOptionsDir/displayToControl
-                    break
-                    ;;
-                1)
-                    echo "HDMI 1" > $setupOptionsDir/displayToControl
-                    break
-                    ;;
-           esac
-        done
-        scriptAction='INSTALL'
-    fi
+    standardActionPrompt
 fi
-
 
 #### installing
 if [ $scriptAction == 'INSTALL' ] ; then
 
-	# the overlay is needed to automatically discover display type
-	if [ ! -f "$overlayFile" ]; then
-		logMessage "installing RPI Display Backlight overlay"
-		cp "$scriptDir/rpi-backlight-overlay.dtb" "$overlayFile"
-		rebootNeeded=true
-		waitForOverlay=true
-	else
-		waitForOverlay=false
-	fi
+    updateActiveFile "$gpioListFile"
 
-	# get selected display from NV storage
-	if [ -f $setupOptionsDir/displayToControl ]; then
-		displayToControl=$(cat $setupOptionsDir/displayToControl)
-	# options not yet set - use auto-discovery
-	else
-		if $waitForOverlay ; then
-			logMessage "install options have not been set - installng overlay and rebooting for auto discovery"
-			runAgain=true
-			# stop setup now and come back later to finish
-			endScript
-		# with overlay in place auto-discover display type		
-		else
-			if [ -e /sys/class/backlight/rpi_backlight ]; then
-				logMessage "auto-discover display type RPI"
-				displayToControl='RPI'
-			else
-				logMessage "auto-discover display type HDMI 0"
-				displayToControl="HDMI 0"
-			fi
-			echo $displayToControl > "$setupOptionsDir/displayToControl"
-		fi
-    fi
+    # modify relaystate.py for additional relays to prevent system calc crash
+    updateActiveFile "$relayStateFile"
+    
+    # install DT overlay to for pull-ups on all digital inputs
+    updateActiveFile $pkgFileSets/VenusGpioOverlay.dtb "$overlayFile"
 
-echo "#### displayToControl $displayToControl"
-
-	if [ -z "$displayToControl" ]; then
-		logMessage "++ ERROR: no display specified - can't continue - install again"
-		exit $EXIT_ERROR
-	fi
-
-
-    logMessage "++ Installing display enhancements for display: $displayToControl"
-    # modify config.txt
-    #   make sure hdmi_blanking is enabled
-    #   ditto for disable_overscan
-    #   remove lines with framebuffer - not needed even with RPI display
-    #   remoe duplicate lines
-
-    sed -e 's/^#* *hdmi_blanking[ =][01]/hdmi_blanking=1/'\
-        -e 's/^#* *disable_overscan[ =][01]/disable_overscan=1/'\
-        -e '/framebuffer/d;' "$configFile" | awk '!NF || !seen[$0]++' > "$configFile.tmp"
-
-    # insert missing lines
-    if [ $(grep -c "disable_overscan=1" $configFile.tmp) == 0 ] ; then
-        logMessage "adding disable_overscan"
-        echo "" >> "$configFile.tmp"
-        echo "# no overscan" >> "$configFile.tmp"
-        echo "disable_overscan=1" >> "$configFile.tmp"
-    fi
-    if [ $(grep -c "hdmi_blanking=1" "$configFile.tmp") == 0 ] ; then
-        logMessage "adding hdmi_blanking"
-        echo "" >> "$configFile.tmp"
-        echo "# allow HDMI display to enter low powr mode" >> "$configFile.tmp"
-        echo "hdmi_blanking=1" >> "$configFile.tmp"
-    fi
-
-    # detect changes
-    $(cmp -s $configFile $configFile.tmp > /dev/null )
-    if [ $? -eq 1 ]; then
-        updateActiveFile "$configFile.tmp" "$configFile"
-        if $thisFileUpdated ; then
-            logMessage "updating config.txt"
-            rebootNeeded=true
-        fi
-    else
-        rm $configFile.tmp
-    fi
-
-    case $displayToControl in
-        RPI)
-            installDimming=true
-            logMessage "disabling AutoBrightness"
-            dbus -y com.victronenergy.settings /Settings/Gui/AutoBrightness SetValue 0 > /dev/null
-            blankDevice="/sys/class/backlight/rpi_backlight/bl_power"
-            ;;
-        "HDMI 0")
-            installDimming=false
-            blankDevice="/sys/class/graphics/fb0/blank"
-            ;;
-        "HDMI 1")
-            installDimming=false
-            blankDevice="/sys/class/graphics/fb1/blank"
-            ;;
-    esac
-
-    # enable screen saver (blanking) from the Venus
-    # using a generic hook that should at least partially work on all displays
-    if [ ! -e $blankDeviceFile ] || [ $(grep -c "$blankDevice" $blankDeviceFile) == 0 ]; then
-        logMessage "setting display blanking to $blankDevice"
-        echo "$blankDevice" > $blankDeviceFile
-        restartGui=true
-    fi
-
-    # enable display brightness only for RPI display
-    if $installDimming ; then
-        updateActiveFile "$guiStartFile"
-
-        logMessage "resetting /Settings/Gui/Brightness max for the RPI display (255)"
-        dbus -y com.victronenergy.settings /Settings AddSettings '%[{"path": "/Gui/Brightness", "default":255, "min":0, "max":255}]' > /dev/null
-        if [ ! -e $dimDeviceFile ] || [ $(grep -c "rpi_backlight" $dimDeviceFile) == 0 ]; then
-            logMessage "setting up brightness control"
-            echo "/sys/class/backlight/rpi_backlight" > $dimDeviceFile
-
-            restartGui=true
-        fi
-    # disable display brightness
-    elif [ -e $dimDeviceFile ]; then
-        logMessage "disabling display brightness"
-        rm -f $dimDeviceFile
-        restartGui=true
-    fi
-
-    # remove the headless flag to allow a local display
-    if [ -e $headlessFlag ] ; then
-        logMessage "activating local GUI"
-        rm -f $headlessFlag
-        restartGui=true
+    if [ $(grep -c "VenusGpioOverlay" "$configFile") == 0 ]; then
+        logMessage "activating GPIO DT overlay"
+        echo "#### change all digital inputs to pull ups" >> "$configFile"
+        echo "dtoverlay=VenusGpioOverlay" >> "$configFile"
+        echo "#### end change all digital inputs to pull ups" >> "$configFile"
+        filesUpdated=true
     fi
 fi
-#### uninstalling - check scriptAction again
+
+# uninstalling - check scriptAction again
 # if an install step failed package needs to be removed
 if [ $scriptAction == 'UNINSTALL' ] ; then
-    logMessage "++ Uninstalling RPI display enhancements"
-    if [ -e $blankDeviceFile ]; then
-        logMessage "disabling display blanking"
-        rm -f $blankDeviceFile
-        restartGui=true
+    restoreActiveFile "$gpioListFile"
+    restoreActiveFile "$overlayFile"
+    restoreActiveFile "$relayStateFile"
+
+    # remove mods from configFile - do not use restore in case other mods were made manually
+    if [ -f "$configFile" ]; then
+        if [ $(grep -c "#### change all digital inputs to pull ups" "$configFile") != 0 ]; then
+            sed -i -e '/#### change all digital inputs to pull ups/,/#### end change all digital inputs to pull ups/d' "$configFile"
+            filesUpdated=true
+        fi
     fi
-    if [ -e $dimDeviceFile ]; then
-        logMessage "disabling display backlight control"
-        restoreActiveFile "$guiStartFile"
-        rm -f $dimDeviceFile
-        restartGui=true
-    fi
-	# normally, we'd reboot after removing the overlay file
-	#	but the overlay shouldn't have any affect on system behavior
-	#	so waiting until the next reboot cycle should be fine
-    if [ -f "$overlayFile" ]; then
-		logMessage "removing $overlayFile"
-		rm -f "$overlayFile"
-	fi
 fi
 
-#thats all folks - SCRIPT EXITS INSIDE THE FUNCTION
+if $filesUpdated ; then
+    rebootNeeded=true
+fi
+
+# thats all folks - SCRIPT EXITS INSIDE THE FUNCTION
 endScript
 

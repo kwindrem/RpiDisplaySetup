@@ -1,0 +1,45 @@
+#### modified for use by the RpiGpio package on Raspberry PI platforms ONLY
+
+# This is a list of gpio pins, set by the script /etc/rcS.d/S90gpio_pins.sh
+# They are documented at: https://github.com/victronenergy/venus/wiki/bbb-gpio
+# Format: <pin_number> <direction: in/out> <name>
+#
+# The <name> part is used to create an symlink in /dev/gpio.
+
+# relays are active HIGH
+# Relay 1   Pin 40 / GPIO 21
+21  out relay_1
+# Relay 2 Pin 11 / GPIO 17
+17  out relay_2
+
+# Relay 3 Pin 13 / GPIO 27
+27  out relay_3
+# Relay 4 Pin 15 / GPIO 22
+22  out relay_4
+# Relay 5 Pin 16 / GPIO 23
+23  out relay_5
+# Relay 6 Pin 18 / GPIO 24
+24  out relay_6
+
+# these have pull UPs
+# Digital input 1   Pin 29 / GPIO 05
+5   in digital_input_1
+# Digital input 2   Pin 31 / GPIO 06
+6   in digital_input_2
+
+
+# in stock code these have pull DOWNs
+#### modified to pull UPs by the GPIO overlay that is installed as part of this package
+
+# Digital input 3   Pin 33 / GPIO 13
+13  in digital_input_3
+# Digital input 4   Pin 35 / GPIO 19
+19  in digital_input_4
+# Digital input 5   Pin 37 / GPIO 26
+26  in digital_input_5
+
+#### Gracefull shutdown input
+#### Note this input is NOT added to the available I/O used by Venus OS !!!!
+# Pin 36 / GPIO 16
+16  in digital_input_6
+
