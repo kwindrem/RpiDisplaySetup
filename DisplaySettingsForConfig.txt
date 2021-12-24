@@ -1,0 +1,22 @@
+# rotate the display 180 degrees - as needed
+#display_hdmi_rotate=2
+lcd_rotate=2
+
+# no overscan
+disable_overscan=1
+
+# allow HDMI display to enter low powr mode
+hdmi_blanking=1
+
+# settings for RPI 7" touchscreen
+# nothing needed - it's magic
+
+# setup for HDMI touchscreen
+# adjust as needed for specific display
+# check with manufacturer
+# below is for Waveshare 1024x600 touchscreen
+# hdmi lines have no effect on RPI 7" touchscreen
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=1024 600 60 6 0 0 0
+hdmi_force_hotplug=1

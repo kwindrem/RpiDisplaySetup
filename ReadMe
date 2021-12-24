@@ -1,30 +1,38 @@
-This package adds additional digital inputs and relay outputs
+This package setups up for Raspberry PI 7" touchscreen display
+and also for HDMI display on HDMI 0 or HDMI 1
+It may also work on other DSI displays with some or all functionality
 
-The stock RPI Venus distribution includes two relays and two digital inputs
+VenusOS already includes much of the support for the RPI display
+    the touch screen calibration included in the image appears to work fine
+        even if the display is rotated 180 degrees
+    the backlight kernal module appears to be in place
 
-This script adds:
-    the additional GPIO pins (5 total) to /etc/venus/gpio_list
-    makes additional digital inputs available
-    makes all digital inputs behave the same: pull up so they are active low
+This script:
+    adds screensaver (blanking) and brightness control from Venus GUI
+    adds activating a local GUI
+    resets the max and default values for /Settings/Gui/Brightness to accommodate the RPI display max of 255
 
-The Raspberry PI default is for the first 8 GPIO pins to have pull UPs
-and the remaining have pull DOWNs. This makes some digital input pins behave differently
-This script installs a DT overlay that switches to pull UPs for all digital input pins
+Do NOT install this package if you do NOT want a local display (running Venus "headless")
 
-This package adds 4 more relays.
+This script is designed to run without any command line interaction e.g., from the Package Manager in the GUI
+	Without the command line, this script discovers the display type automatically.
+	The package must be partially installed, then Venus rebooted in order to discover the display type
+		and finish the installation.
+	Note: that HDMI 1 can not be auto-discovered -- only RPI and HDMI 0.
+		I'm actually not sure if HDMI 1 is supported at all in Venus OS!!
 
-Only the first relay can be assigned to a function: alarm, genertor start/stop or pump.
-Others are only provided manual on/off control from the menu.
+The script can also be run from the command line.
+	The user is prompted for display type: RPI, HDMI 0 or HDMI 1, skipping the auto-discovery mechanism.
 
-The remaining 5 relays are manual on/off only.
+This script will also be called from reinstallMods to reinstall functionality after a Venus update
 
-This script should be run manually initally.
-It will then called from reinstallMods to reinstall functionality after a Venus update
+Only the RPI touchscreen supports dimming (other DSI displays might also)
+	while HDMI does not support any dimming mechanism.
+
+Some HDMI displays have no backlight control. In this case the screen will go black 
+but may still glow if backlight remains on
 
 Setup:
 
-The easiest way to install this or other of my packages is to first install SetupHelper
-which you need to do anyway,
-then use its package install tool. Refer to the SetupHelper ReadMe for instructions.
-
-
+The easiest way to install this or other of my packages is to first install SetupHelper (v4.0 or later),
+then use Package Manager from the GUI. Refer to the SetupHelper ReadMe for instructions.
