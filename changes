@@ -1,3 +1,6 @@
+v2.4:
+	fixed: backlight dimming didn't work with new RPI 4 kernel
+		replaced backlight overlay
 v2.2-v2.3:
 	added raspberryPiOnly flag file
 	added display type auto-discovery for blind installs from Package Manager

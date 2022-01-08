@@ -31,7 +31,8 @@
 
 headlessFlag=/etc/venus/headless
 restartGui=false
-overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
+#overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
+overlayFile="/u-boot/overlays/rpi-backlight.dtbo"
 configFile="/u-boot/config.txt"
 guiStartFile="/opt/victronenergy/gui/start-gui.sh"
 
