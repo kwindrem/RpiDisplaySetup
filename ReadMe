@@ -22,7 +22,12 @@ This script is designed to run without any command line interaction e.g., from t
 		I'm actually not sure if HDMI 1 is supported at all in Venus OS!!
 
 The script can also be run from the command line.
-	The user is prompted for display type: RPI, HDMI 0 or HDMI 1, skipping the auto-discovery mechanism.
+	The user is prompted for display type: RPI, HDMI 0, HDMI 1,] or CUSTOM, skipping the auto-discovery mechanism.
+
+	Selecting CUSTOM allows the user to specify the /sys/class/... devices for blanking and dimming
+
+	Files for these custom devices are stored in /data/setupOptions/RpiDisplaySetup and can be edited manually.
+	If present, these files overwrite the display type selection
 
 This script will also be called from reinstallMods to reinstall functionality after a Venus update
 

@@ -92,7 +92,9 @@ if [ $scriptAction == 'NONE' ] ; then
         echo "    (R) Raspberry PI touchscreen (DSI)"
         echo "    (0) HDMI display connected to port 0 (closest to power connector)"
         echo "    (1) HDMI display connected to port 1"
+        echo "    (C) custom - fill in blank and dim manually"
         echo
+		customControl=false
         while true ; do
             read -p "Choose a display from the list above (R / 0 / 1): " display
             case $display in
@@ -108,12 +110,27 @@ if [ $scriptAction == 'NONE' ] ; then
                     echo "HDMI 1" > $setupOptionsDir/displayToControl
                     break
                     ;;
+                [cC]*)
+                    echo "CUSTOM" > $setupOptionsDir/displayToControl
+					customControl=true
+                    break
+                    ;;
            esac
         done
+		if $customControl ; then
+			read -p "enter blanking device (/sys/class/...): " blankDevice
+			echo $blankDevice > "$setupOptionsDir/blank_display_device"
+			read -p "enter dimming device (/sys/class/...): " dimDevice
+			echo $dimDevice > "$setupOptionsDir/backlight_device"
+		else
+			rm "$setupOptionsDir/blank_display_device"
+			rm "$setupOptionsDir/backlight_device"
+		fi
+
+
         scriptAction='INSTALL'
     fi
 fi
-
 
 #### installing
 if [ $scriptAction == 'INSTALL' ] ; then
@@ -130,7 +147,7 @@ if [ $scriptAction == 'INSTALL' ] ; then
 
 	# get selected display from NV storage
 	if [ -f $setupOptionsDir/displayToControl ]; then
-		displayToControl=$(cat $setupOptionsDir/displayToControl)
+		displayToControl=$(cat "$setupOptionsDir/displayToControl")
 	# options not yet set - use auto-discovery
 	else
 		if $waitForOverlay ; then
@@ -169,7 +186,7 @@ if [ $scriptAction == 'INSTALL' ] ; then
         -e '/framebuffer/d;' "$configFile" | awk '!NF || !seen[$0]++' > "$configFile.tmp"
 
     # insert missing lines
-    if [ $(grep -c "disable_overscan=1" $configFile.tmp) == 0 ] ; then
+    if [ $(grep -c "disable_overscan=1" "$configFile.tmp") == 0 ] ; then
         logMessage "adding disable_overscan"
         echo "" >> "$configFile.tmp"
         echo "# no overscan" >> "$configFile.tmp"
@@ -183,7 +200,7 @@ if [ $scriptAction == 'INSTALL' ] ; then
     fi
 
     # detect changes
-    $(cmp -s $configFile $configFile.tmp > /dev/null )
+    cmp -s $configFile "$configFile.tmp" > /dev/null
     if [ $? -eq 1 ]; then
         updateActiveFile "$configFile.tmp" "$configFile"
         if $thisFileUpdated ; then
@@ -196,53 +213,63 @@ if [ $scriptAction == 'INSTALL' ] ; then
 
     case $displayToControl in
         RPI)
-            installDimming=true
-            logMessage "disabling AutoBrightness"
-            dbus -y com.victronenergy.settings /Settings/Gui/AutoBrightness SetValue 0 > /dev/null
             blankDevice="/sys/class/backlight/rpi_backlight/bl_power"
+			dimDevice="/sys/class/backlight/rpi_backlight"
             ;;
         "HDMI 0")
-            installDimming=false
             blankDevice="/sys/class/graphics/fb0/blank"
+            dimDevice=""
             ;;
         "HDMI 1")
-            installDimming=false
             blankDevice="/sys/class/graphics/fb1/blank"
+            dimDevice=""
+            ;;
+		default)
+            blankDevice=""
+            dimDevice=""
             ;;
     esac
 
-    # enable screen saver (blanking) from the Venus
-    # using a generic hook that should at least partially work on all displays
+	# use custom blank device file if provided
 	if [ -f "$setupOptionsDir/blank_display_device" ]; then
-		logMessage "using custom blank_display_device file"
-		cp "$setupOptionsDir/blank_display_device" "$blankDeviceFile"
-        restartGui=true
-    elif [ ! -e $blankDeviceFile ] || [ $(grep -c "$blankDevice" $blankDeviceFile) == 0 ]; then
+		blankDevice=$(cat "$setupOptionsDir/blank_display_device")
+		logMessage "using custom blank_display_device file: $blankDevice"
+    fi
+    # enable screen saver (blanking) from the Venus
+    if [ ! -e "$blankDeviceFile" ] || [ $(grep -c $blankDevice "$blankDeviceFile") == 0 ]; then
         logMessage "setting display blanking to $blankDevice"
-        echo "$blankDevice" > $blankDeviceFile
+        echo $blankDevice > "$blankDeviceFile"
         restartGui=true
     fi
 
-    # enable display brightness only for RPI display
+    # use custom dimming file if provided
 	if [ -f "$setupOptionsDir/backlight_device" ]; then
-		logMessage "using custom backlight_device file"
-		cp "$setupOptionsDir/backlight_device" "$dimDeviceFile"
-        restartGui=true
-    elif $installDimming ; then
-        updateActiveFile "$guiStartFile"
+		dimDevice=$(cat "$setupOptionsDir/backlight_device")
+		logMessage "using custom backlight_device file: $dimDevice"
+	fi
+	#enable display dimming if device is specified
+	if [ $dimDevice != "" ]; then
+        if [ ! -e $dimDeviceFile ] || [ $(grep -c $dimDevice "$dimDeviceFile") == 0 ]; then
+            logMessage "setting up brightness control: $dimDevice"
+            echo $dimDevice > $dimDeviceFile
+			restartGui=true
+		fi
 
+		# setup other paremeters for dimming
+        updateActiveFile "$guiStartFile"
+		logMessage "disabling AutoBrightness"
+		dbus -y com.victronenergy.settings /Settings/Gui/AutoBrightness SetValue 0 > /dev/null
         logMessage "resetting /Settings/Gui/Brightness max for the RPI display (255)"
         dbus -y com.victronenergy.settings /Settings AddSettings '%[{"path": "/Gui/Brightness", "default":255, "min":0, "max":255}]' > /dev/null
-        if [ ! -e $dimDeviceFile ] || [ $(grep -c "rpi_backlight" "$dimDeviceFile") == 0 ]; then
-            logMessage "setting up brightness control"
-            echo "/sys/class/backlight/rpi_backlight" > $dimDeviceFile
-
+        if [ ! -e $dimDeviceFile ] || [ $(grep -c $dimDevice "$dimDeviceFile") == 0 ]; then
+            logMessage "setting up brightness control to $dimDevice"
+            echo $dimDevice > "$dimDeviceFile"
             restartGui=true
         fi
     # disable display brightness
-    elif [ -e $dimDeviceFile ]; then
+    elif [ -e "$dimDeviceFile" ]; then
         logMessage "disabling display brightness"
-        rm -f $dimDeviceFile
+        rm -f "$dimDeviceFile"
         restartGui=true
     fi
 
@@ -257,15 +284,15 @@ fi
 # if an install step failed package needs to be removed
 if [ $scriptAction == 'UNINSTALL' ] ; then
     logMessage "++ Uninstalling RPI display enhancements"
-    if [ -e $blankDeviceFile ]; then
+    if [ -e "$blankDeviceFile" ]; then
         logMessage "disabling display blanking"
-        rm -f $blankDeviceFile
+        rm -f "$blankDeviceFile"
         restartGui=true
     fi
     if [ -e $dimDeviceFile ]; then
         logMessage "disabling display backlight control"
         restoreActiveFile "$guiStartFile"
-        rm -f $dimDeviceFile
+        rm -f "$dimDeviceFile"
         restartGui=true
     fi
 	# normally, we'd reboot after removing the overlay file
