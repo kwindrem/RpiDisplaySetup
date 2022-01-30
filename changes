@@ -1,3 +1,10 @@
+v2.5:
+	added custom blanking and dimming control files
+	if these files exist they are copied to /etc/venus instead of
+		creating them based on the display type
+		/setupOptions/RpiDisplaySetup/blank_display_device
+		/setupOptions/RpiDisplaySetup/backlight_device
+
 v2.4:
 	fixed: backlight dimming didn't work with new RPI 4 kernel
 		replaced backlight overlay

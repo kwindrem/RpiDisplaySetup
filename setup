@@ -151,8 +151,6 @@ if [ $scriptAction == 'INSTALL' ] ; then
 		fi
     fi
 
-echo "#### displayToControl $displayToControl"
-
 	if [ -z "$displayToControl" ]; then
 		logMessage "++ ERROR: no display specified - can't continue - install again"
 		exit $EXIT_ERROR
@@ -215,19 +213,27 @@ echo "#### displayToControl $displayToControl"
 
     # enable screen saver (blanking) from the Venus
     # using a generic hook that should at least partially work on all displays
-    if [ ! -e $blankDeviceFile ] || [ $(grep -c "$blankDevice" $blankDeviceFile) == 0 ]; then
+	if [ -f "$setupOptionsDir/blank_display_device" ]; then
+		logMessage "using custom blank_display_device file"
+		cp "$setupOptionsDir/blank_display_device" "$blankDeviceFile"
+        restartGui=true
+    elif [ ! -e $blankDeviceFile ] || [ $(grep -c "$blankDevice" $blankDeviceFile) == 0 ]; then
         logMessage "setting display blanking to $blankDevice"
         echo "$blankDevice" > $blankDeviceFile
         restartGui=true
     fi
 
     # enable display brightness only for RPI display
-    if $installDimming ; then
+	if [ -f "$setupOptionsDir/backlight_device" ]; then
+		logMessage "using custom backlight_device file"
+		cp "$setupOptionsDir/backlight_device" "$dimDeviceFile"
+        restartGui=true
+    elif $installDimming ; then
         updateActiveFile "$guiStartFile"
 
         logMessage "resetting /Settings/Gui/Brightness max for the RPI display (255)"
         dbus -y com.victronenergy.settings /Settings AddSettings '%[{"path": "/Gui/Brightness", "default":255, "min":0, "max":255}]' > /dev/null
-        if [ ! -e $dimDeviceFile ] || [ $(grep -c "rpi_backlight" $dimDeviceFile) == 0 ]; then
+        if [ ! -e $dimDeviceFile ] || [ $(grep -c "rpi_backlight" "$dimDeviceFile") == 0 ]; then
             logMessage "setting up brightness control"
             echo "/sys/class/backlight/rpi_backlight" > $dimDeviceFile
 
