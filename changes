@@ -1,3 +1,6 @@
+v2.7:
+	added v2.80 - no functional changes
+
 v2.6:
 	fixed: changes for v2.5 didn't activate dimming with custom file
 	added CUSTOM display type with /sys/class... entry for blank and dimming
