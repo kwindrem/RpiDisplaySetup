@@ -119,9 +119,17 @@ if [ $scriptAction == 'NONE' ] ; then
         done
 		if $customControl ; then
 			read -p "enter blanking device (/sys/class/...): " blankDevice
-			echo $blankDevice > "$setupOptionsDir/blank_display_device"
+			if [ "$blankDevice" != "" ]; then
+				echo $blankDevice > "$setupOptionsDir/blank_display_device"
+			else
+				rm -f "$setupOptionsDir/blank_display_device"
+			fi
 			read -p "enter dimming device (/sys/class/...): " dimDevice
-			echo $dimDevice > "$setupOptionsDir/backlight_device"
+			if [ "$dimDevice" != "" ]; then
+				echo $dimDevice > "$setupOptionsDir/backlight_device"
+			else
+				rm -f "$setupOptionsDir/backlight_device"
+			fi
 		else
 			rm "$setupOptionsDir/blank_display_device"
 			rm "$setupOptionsDir/backlight_device"
@@ -236,9 +244,15 @@ if [ $scriptAction == 'INSTALL' ] ; then
 		logMessage "using custom blank_display_device file: $blankDevice"
     fi
     # enable screen saver (blanking) from the Venus
-    if [ ! -e "$blankDeviceFile" ] || [ $(grep -c $blankDevice "$blankDeviceFile") == 0 ]; then
-        logMessage "setting display blanking to $blankDevice"
-        echo $blankDevice > "$blankDeviceFile"
+	if [ "$blankDevice" != "" ]; then
+		if [ ! -e "$blankDeviceFile" ] || [ $(grep -c $blankDevice "$blankDeviceFile") == 0 ]; then
+			logMessage "setting display blanking to $blankDevice"
+			echo $blankDevice > "$blankDeviceFile"
+			restartGui=true
+		fi
+    elif [ -e "$blankDeviceFile" ]; then
+        logMessage "disabling display blanking"
+        rm -f "$blankDeviceFile"
         restartGui=true
     fi
 
@@ -248,7 +262,7 @@ if [ $scriptAction == 'INSTALL' ] ; then
 		logMessage "using custom backlight_device file: $dimDevice"
 	fi
 	#enable display dimming if device is specified
-	if [ $dimDevice != "" ]; then
+	if [ "$dimDevice" != "" ]; then
         if [ ! -e $dimDeviceFile ] || [ $(grep -c $dimDevice "$dimDeviceFile") == 0 ]; then
             logMessage "setting up brightness control: $dimDevice"
             echo $dimDevice > $dimDeviceFile
