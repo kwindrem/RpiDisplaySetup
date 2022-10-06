@@ -1,3 +1,7 @@
+v2.9:
+	added support for Venus OS v2.89
+	dropped support for Venus OS v2.4x and 2.5x
+
 v2.8:
 	fixed: setup crashes if custom display type and both files not specified
 
