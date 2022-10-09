@@ -31,7 +31,6 @@
 
 headlessFlag=/etc/venus/headless
 restartGui=false
-#overlayFile="/u-boot/overlays/rpi-backlight-overlay.dtb"
 overlayFile="/u-boot/overlays/rpi-backlight.dtbo"
 configFile="/u-boot/config.txt"
 guiStartFile="/opt/victronenergy/gui/start-gui.sh"
@@ -48,29 +47,6 @@ source "/data/SetupHelper/CommonResources"
 
 #### end of lines to include SetupHelper
 
-####### this is duplicate to code in CommonResources -- keep in case SetupHelepr has not been updated
-# prevent installing if not a Raspberry Pi
-if [ -f /etc/venus/machine ]; then
-    machine=$(cat /etc/venus/machine)
-fi
-if [ -z $machine ]; then
-    if [ -f "$installedFlag" ]; then
-        logMessage "can't determine Venus device type - uninstalling"
-        scriptAction='UNINSTALL'
-    else
-        logMessage "can't determine Venus device type - exiting"
-        exit $EXIT_INCOMPATIBLE_PLATFOM
-    fi
-elif [ $machine != "raspberrypi2" ] && [ $machine != "raspberrypi4" ]; then
-    if [ -f "$installedFlag" ]; then
-        logMessage "$packageName not compatible with $machine - uninstalling"
-        scriptAction='UNINSTALL'
-    else
-        logMessage "$packageName not compatible with $machine - exiting"
-        exit $EXIT_INCOMPATIBLE_PLATFOM
-    fi
-fi
-
 #### running manually and OK to proceed - prompt for input
 if [ $scriptAction == 'NONE' ] ; then
     # display innitial message
@@ -82,6 +58,8 @@ if [ $scriptAction == 'NONE' ] ; then
     echo "The screen saver will switch to a black screen"
     echo "  with the backlight still on for HDMI displays that do not support standby"
     echo "Display brighness controll is enabled only for the RPI touchscreen"
+    echo
+    echo "Uninstalling disables the local display (sets headless)"
 
     standardActionPrompt 'MORE_PROMPTS'
     # PROMPT is left over from a previous version of SetupHelper
@@ -96,7 +74,7 @@ if [ $scriptAction == 'NONE' ] ; then
         echo
 		customControl=false
         while true ; do
-            read -p "Choose a display from the list above (R / 0 / 1): " display
+            read -p "Choose a display from the list above (R / 0 / 1 / C): " display
             case $display in
                 [rR]*)
                     echo "RPI" > $setupOptionsDir/displayToControl
@@ -104,10 +82,12 @@ if [ $scriptAction == 'NONE' ] ; then
                     ;;
                 0)
                     echo "HDMI 0" > $setupOptionsDir/displayToControl
+                    logMessage "WARNING: /u-boot/config.txt may require manual modifications to support an HDMI display"
                     break
                     ;;
                 1)
                     echo "HDMI 1" > $setupOptionsDir/displayToControl
+                    logMessage "WARNING: /u-boot/config.txt may require manual modifications to support an HDMI display"
                     break
                     ;;
                 [cC]*)
@@ -131,10 +111,15 @@ if [ $scriptAction == 'NONE' ] ; then
 				rm -f "$setupOptionsDir/backlight_device"
 			fi
 		else
-			rm "$setupOptionsDir/blank_display_device"
-			rm "$setupOptionsDir/backlight_device"
+			rm -f "$setupOptionsDir/blank_display_device"
+			rm -f "$setupOptionsDir/backlight_device"
 		fi
-
+		yesNoPrompt "rotate the display 180 degrees (y/n)?: "
+		if $yesResponse ; then
+			touch "$setupOptionsDir/rotateDisplay"
+		else
+			rm -f "$setupOptionsDir/rotateDisplay"
+		fi
 
         scriptAction='INSTALL'
     fi
@@ -180,45 +165,6 @@ if [ $scriptAction == 'INSTALL' ] ; then
 		logMessage "++ ERROR: no display specified - can't continue - install again"
 		exit $EXIT_ERROR
 	fi
-
-
-    logMessage "++ Installing display enhancements for display: $displayToControl"
-    # modify config.txt
-    #   make sure hdmi_blanking is enabled
-    #   ditto for disable_overscan
-    #   remove lines with framebuffer - not needed even with RPI display
-    #   remoe duplicate lines
-
-    sed -e 's/^#* *hdmi_blanking[ =][01]/hdmi_blanking=1/'\
-        -e 's/^#* *disable_overscan[ =][01]/disable_overscan=1/'\
-        -e '/framebuffer/d;' "$configFile" | awk '!NF || !seen[$0]++' > "$configFile.tmp"
-
-    # insert missing lines
-    if [ $(grep -c "disable_overscan=1" "$configFile.tmp") == 0 ] ; then
-        logMessage "adding disable_overscan"
-        echo "" >> "$configFile.tmp"
-        echo "# no overscan" >> "$configFile.tmp"
-        echo "disable_overscan=1" >> "$configFile.tmp"
-    fi
-    if [ $(grep -c "hdmi_blanking=1" "$configFile.tmp") == 0 ] ; then
-        logMessage "adding hdmi_blanking"
-        echo "" >> "$configFile.tmp"
-        echo "# allow HDMI display to enter low powr mode" >> "$configFile.tmp"
-        echo "hdmi_blanking=1" >> "$configFile.tmp"
-    fi
-
-    # detect changes
-    cmp -s $configFile "$configFile.tmp" > /dev/null
-    if (( $? == 1 )); then
-        updateActiveFile "$configFile.tmp" "$configFile"
-        if $thisFileUpdated ; then
-            logMessage "updating config.txt"
-            rebootNeeded=true
-        fi
-    else
-        rm $configFile.tmp
-    fi
-
     case $displayToControl in
         RPI)
             blankDevice="/sys/class/backlight/rpi_backlight/bl_power"
@@ -235,8 +181,54 @@ if [ $scriptAction == 'INSTALL' ] ; then
 		default)
             blankDevice=""
             dimDevice=""
+			rotate=""
             ;;
     esac
+
+    logMessage "++ Installing display enhancements for display: $displayToControl"
+    # modify config.txt
+    #   make sure hdmi_blanking is enabled
+    #   ditto for disable_overscan
+    #   remove lines with framebuffer - not needed even with RPI display
+    #   remoe duplicate lines
+    sed -e 's/^#* *hdmi_blanking[ =][01]/hdmi_blanking=1/'\
+        -e 's/^#* *disable_overscan[ =][01]/disable_overscan=1/'\
+        -e '/framebuffer/d;' "$configFile" | awk '!NF || !seen[$0]++' > "$configFile.tmp"
+
+    # insert missing lines
+    if [ $(grep -c "disable_overscan=1" "$configFile.tmp") == 0 ] ; then
+        logMessage "adding disable_overscan"
+        echo "" >> "$configFile.tmp"
+        echo "# no overscan" >> "$configFile.tmp"
+        echo "disable_overscan=1" >> "$configFile.tmp"
+    fi
+    if [ $(grep -v "#" "$configFile.tmp" | grep -c "hdmi_blanking=1" ) == 0 ] ; then
+        logMessage "adding hdmi_blanking"
+        echo "" >> "$configFile.tmp"
+        echo "# allow HDMI display to enter low powr mode" >> "$configFile.tmp"
+        echo "hdmi_blanking=1" >> "$configFile.tmp"
+    fi
+	if [ -f "$setupOptionsDir/rotateDisplay" ]; then
+		if [ $(grep -c "#### rotate display 180 degrees" "$configFile.tmp") == 0 ] ; then
+			echo "#### rotate display 180 degrees" >> "$configFile.tmp"
+			echo "lcd_rotate=2" >> "$configFile.tmp"
+			echo "display_hdmi_rotate=2" >> "$configFile.tmp"
+			echo "#### end rotate" >> "$configFile.tmp"
+		fi
+	else
+		sed -i -e "/#### rotate display 180 degrees/,/#### end rotate/d" "$configFile.tmp"
+	fi
+    # detect changes
+    cmp -s $configFile "$configFile.tmp" > /dev/null
+    if (( $? == 1 )); then
+        updateActiveFile "$configFile.tmp" "$configFile"
+        if $thisFileUpdated ; then
+            logMessage "updating config.txt"
+            rebootNeeded=true
+        fi
+    else
+        rm $configFile.tmp
+    fi
 
 	# use custom blank device file if provided
 	if [ -f "$setupOptionsDir/blank_display_device" ]; then
@@ -291,7 +283,7 @@ if [ $scriptAction == 'INSTALL' ] ; then
     if [ -e $headlessFlag ] ; then
         logMessage "activating local GUI"
         rm -f $headlessFlag
-        restartGui=true
+		rebootNeeded=true
     fi
 fi
 #### uninstalling - check scriptAction again
@@ -316,8 +308,23 @@ if [ $scriptAction == 'UNINSTALL' ] ; then
 		logMessage "removing $overlayFile"
 		rm -f "$overlayFile"
 	fi
+	if [ -f "/u-boot/config.txt.orig" ] ; then
+		sed -i -e "/#### rotate display 180 degrees/,/#### end rotate/d" "$configFile"
+		logMessage "/u-boot/config.txt NOT fully restored - manual restore may be needed"
+		logMessage "/u-boot.config.txt.orig may help with restore"
+		rebootNeeded=true
+	fi
+
+	if [ ! -f "/etc/venus/headless" ]; then
+		echo
+		logMessage "DISABLING LOCAL GUI - reverts to console"
+		echo
+		touch "/etc/venus/headless"
+		rebootNeeded=true
+	fi
 fi
 
+echo "#### reboot needed $rebootNeeded"
 #thats all folks - SCRIPT EXITS INSIDE THE FUNCTION
 endScript
 

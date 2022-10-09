@@ -1,5 +1,5 @@
 This package setups up for Raspberry PI 7" touchscreen display
-and also for HDMI display on HDMI 0 or HDMI 1
+and also (partially) for HDMI display on HDMI 0 or HDMI 1
 It may also work on other DSI displays with some or all functionality
 
 VenusOS already includes much of the support for the RPI display
@@ -10,9 +10,11 @@ VenusOS already includes much of the support for the RPI display
 This script:
     adds screensaver (blanking) and brightness control from Venus GUI
     adds activating a local GUI
+    optionally rotates the display 180 degrees
     resets the max and default values for /Settings/Gui/Brightness to accommodate the RPI display max of 255
 
 Do NOT install this package if you do NOT want a local display (running Venus "headless")
+Uninstalling this package will disable the local GUI !
 
 This script is designed to run without any command line interaction e.g., from the Package Manager in the GUI
 	Without the command line, this script discovers the display type automatically.
@@ -36,6 +38,14 @@ Only the RPI touchscreen supports dimming (other DSI displays might also)
 
 Some HDMI displays have no backlight control. In this case the screen will go black 
 but may still glow if backlight remains on
+
+Most HDMI displays will require manual modification to /u-boot/config.txt.
+For example one of the Waveshare displays requires these lines to be added to config.txt:
+	hdmi_group=2
+	hdmi_mode=87
+	hdmi_cvt=1024 600 60 6 0 0 0
+	hdmi_force_hotplug=1
+Other displays will likley require different entries so adding them automatically from this package is not appropirate
 
 Setup:
 
