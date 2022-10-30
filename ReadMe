@@ -1,35 +1,43 @@
 This package setups up for Raspberry PI 7" touchscreen display
-and also (partially) for HDMI display on HDMI 0 or HDMI 1
+and also for HDMI display on HDMI 0
 It may also work on other DSI displays with some or all functionality
 
 VenusOS already includes much of the support for the RPI display
-    the touch screen calibration included in the image appears to work fine
-        even if the display is rotated 180 degrees
+    the touch screen calibration included in the image appears to work
+    with the RPI display even if the display is rotated 180 degrees
     the backlight kernal module appears to be in place
 
 This script:
-    adds screensaver (blanking) and brightness control from Venus GUI
-    adds activating a local GUI
+    adds screensaver (blanking) and brightness control (RPI display only) from Venus GUI
+    activates the local GUI
     optionally rotates the display 180 degrees
     resets the max and default values for /Settings/Gui/Brightness to accommodate the RPI display max of 255
+    For HDMI displays selects automatic configuration, mode presets or full custom configuraiton
+    runs touch screen calibration (optional)
 
 Do NOT install this package if you do NOT want a local display (running Venus "headless")
 Uninstalling this package will disable the local GUI !
 
 This script is designed to run without any command line interaction e.g., from the Package Manager in the GUI
-	Without the command line, this script discovers the display type automatically.
+	but ONLY for the RPI display
+	Without the command line, this script discovers the RPI display automatically.
 	The package must be partially installed, then Venus rebooted in order to discover the display type
 		and finish the installation.
-	Note: that HDMI 1 can not be auto-discovered -- only RPI and HDMI 0.
-		I'm actually not sure if HDMI 1 is supported at all in Venus OS!!
+	Note: an HDMI display can not be auto-discovered. The setup script must be run from the command line.
 
 The script can also be run from the command line.
-	The user is prompted for display type: RPI, HDMI 0, HDMI 1,] or CUSTOM, skipping the auto-discovery mechanism.
+	The user is prompted for display type: RPI, HDMI, skipping the auto-discovery mechanism.
 
-	Selecting CUSTOM allows the user to specify the /sys/class/... devices for blanking and dimming
+	Custom devices for blanking and dimming may also be entered as /sys/class/...
 
 	Files for these custom devices are stored in /data/setupOptions/RpiDisplaySetup and can be edited manually.
 	If present, these files overwrite the display type selection
+
+Touch screen calibraiton can be run from the command line.
+The script will install ts_calibrate from the internet if it is not present on the system.
+Then the script will disable the GUI and reboot the system and run ts_calibrate,
+then will reboot the system again to restore the GUI.
+The display should be producing the proper image BEFORE running touch screen calibration.
 
 This script will also be called from reinstallMods to reinstall functionality after a Venus update
 
@@ -39,13 +47,10 @@ Only the RPI touchscreen supports dimming (other DSI displays might also)
 Some HDMI displays have no backlight control. In this case the screen will go black 
 but may still glow if backlight remains on
 
-Most HDMI displays will require manual modification to /u-boot/config.txt.
-For example one of the Waveshare displays requires these lines to be added to config.txt:
-	hdmi_group=2
-	hdmi_mode=87
-	hdmi_cvt=1024 600 60 6 0 0 0
-	hdmi_force_hotplug=1
-Other displays will likley require different entries so adding them automatically from this package is not appropirate
+Some HDMI displays may require manual modification to /u-boot/config.txt.
+If this is needed, either do not use RpiDisplaySetup or manually edit config.txt
+	AFTER running RpiDisplaySetup' setup script
+	config.txt is not overwritten by Venus OS updates so any modifications you make should persist.
 
 Setup:
 

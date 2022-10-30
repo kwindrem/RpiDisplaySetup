@@ -23,6 +23,7 @@
 # Note: the display will take longer to come out of screen saver if powered down
 # but if this is not done, the display backlight will remain on and be visible as a glow
 #
+# add HDMI configuration to /u-boot/config.txt
 # You may need to make additional changes/additions manaually to support the display in use
 #
 # Note, this script may reboot the system to comlete all operations
@@ -39,6 +40,9 @@ blankDeviceFile=/etc/venus/blank_display_device
 dimDeviceFile=/etc/venus/backlight_device
 # no log file for this package
 packageLogFile=""
+
+setupForTsCalibrate=false
+
 
 #### following lines incorporate SetupHelper utilities into this script
 # Refer to the SetupHelper ReadMe file for details.
@@ -67,67 +71,199 @@ if [ $scriptAction == 'NONE' ] ; then
     if [ $scriptAction == 'NONE' ] || [ $scriptAction == 'PROMPT' ]; then
         echo
         echo "This script supports the following displays:"
-        echo "    (R) Raspberry PI touchscreen (DSI)"
-        echo "    (0) HDMI display connected to port 0 (closest to power connector)"
-        echo "    (1) HDMI display connected to port 1"
-        echo "    (C) custom - fill in blank and dim manually"
+        echo "    (R) Raspberry PI touchscreen - may also work with other DSI displays"
+        echo "    (H) HDMI display connected to port 0 (closest to power connector)"
+        echo "    (C) skip display configuration and run touch screen calibration only"
         echo
 		customControl=false
+		hdmiConfig=false
+		touchScreenCalibrateOnly=false
         while true ; do
-            read -p "Choose a display from the list above (R / 0 / 1 / C): " display
+            read -p "Choose a display from the list above (R / H / C): " display
             case $display in
                 [rR]*)
                     echo "RPI" > $setupOptionsDir/displayToControl
                     break
                     ;;
-                0)
-                    echo "HDMI 0" > $setupOptionsDir/displayToControl
-                    logMessage "WARNING: /u-boot/config.txt may require manual modifications to support an HDMI display"
-                    break
-                    ;;
-                1)
-                    echo "HDMI 1" > $setupOptionsDir/displayToControl
-                    logMessage "WARNING: /u-boot/config.txt may require manual modifications to support an HDMI display"
+                [hH]*)
+                    echo "HDMI" > $setupOptionsDir/displayToControl
+                    hdmiConfig=true
                     break
                     ;;
                 [cC]*)
-                    echo "CUSTOM" > $setupOptionsDir/displayToControl
-					customControl=true
+					touchScreenCalibrateOnly=true
                     break
                     ;;
            esac
         done
-		if $customControl ; then
-			read -p "enter blanking device (/sys/class/...): " blankDevice
-			if [ "$blankDevice" != "" ]; then
-				echo $blankDevice > "$setupOptionsDir/blank_display_device"
-			else
-				rm -f "$setupOptionsDir/blank_display_device"
-			fi
-			read -p "enter dimming device (/sys/class/...): " dimDevice
-			if [ "$dimDevice" != "" ]; then
-				echo $dimDevice > "$setupOptionsDir/backlight_device"
-			else
-				rm -f "$setupOptionsDir/backlight_device"
-			fi
-		else
-			rm -f "$setupOptionsDir/blank_display_device"
-			rm -f "$setupOptionsDir/backlight_device"
-		fi
-		yesNoPrompt "rotate the display 180 degrees (y/n)?: "
-		if $yesResponse ; then
-			touch "$setupOptionsDir/rotateDisplay"
-		else
-			rm -f "$setupOptionsDir/rotateDisplay"
+
+		if $hdmiConfig ; then
+			echo
+			echo "HDMI displays require configuration lines to be added to /u-boot/config.txt" 
+			echo "  and may also require toush screen calibraiton"
+			echo
+			echo "HDMI mode"
+			echo "  some displays will automatically configure (A)"
+			echo "  some will conform to predefined settings (P)"
+			echo "  others will require custom configuration settings (C)"
+			echo
+			hdmiGroup="-"
+			hdmiMode="-"
+			horizontalResolution="-"
+			verticalResolution="-"
+			refreshRate="-"
+			while true ; do
+				read -p "Select the HDMI mode from the above list (A / P / C): " response
+				case $response in
+					[aA]*)	
+						hdmiGroup=0
+						break
+						;;
+					[pP]*)	
+						echo
+						echo "for group and mode numbers refer to"
+						echo "  https://www.raspberrypi.com/documentation/computers/config_txt.html#hdmi-mode"
+						while true ; do
+							read -p "Enter the HDMI group number (1 = CEA, 2 = DMT): " response
+							case $response in
+								1 | [cC]*)
+									hdmiGroup=1
+									maxMode=107
+									groupText="CEA"
+									break
+									;;
+								2 | [dD]*)
+									hdmiGroup=2
+									maxMode=86
+									groupText="DMT"
+									break
+									;;
+								*)
+									echo "invalid group $response"
+									;;
+							esac
+						done
+						while true ; do
+							read -p "Enter the $groupText mode number (1 - $maxMode) : " hdmiMode
+							if [ ! -z $hdmiMode ] && (( $hdmiMode > 0 )) && (( $hdmiMode <= $maxMode )); then
+								break
+							else
+								echo "invalid mode $hdmiMode"
+							fi
+						done
+						break
+						;;
+					[cC]*)
+						hdmiGroup=2
+						hdmiMode=87
+						while true ; do
+							read -p "Enter the horizontal resolution of the display: " horizontalResolution
+							if [ ! -z $horizontalResolution ] && (( $horizontalResolution > 0 )) && (( $horizontalResolution < 9999 )); then
+								break
+							else
+								echo "invalid H value $horizontalResolution"
+							fi
+						done
+						while true ; do
+							read -p "Enter the vertical resolution of the display: " verticalResolution
+							if [ ! -z $verticalResolution ] && (( $verticalResolution > 0 )) && (( $verticalResolution < 9999 )); then
+								break
+							else
+								echo "invalid V value $verticalResolution"
+							fi
+						done
+						read -p "Enter the display refresh rate (cr for 60): " refreshRate
+						if [ -z $refreshRate ]; then
+							refreshRate=60
+						fi
+						echo "display aspect:"
+						echo "  1 4:3"
+						echo "  2 14:9"
+						echo "  3 16:9"
+						echo "  4 5:4"
+						echo "  5 16:10"
+						echo "  6 15:9"
+						while true ; do
+							read -p "Enter the display aspect ratio from the list above: " aspect
+							if [ ! -z $aspect ] && (( $aspect >= 1 )) && (( $aspect <= 6 )); then
+								break
+							else
+								echo "invalid aspect $aspect"
+							fi
+						done
+						break
+						;;
+				esac
+			done
+			echo "$hdmiGroup $hdmiMode $horizontalResolution $verticalResolution $refreshRate $aspect" > "$setupOptionsDir/displayRates"
 		fi
 
+
+		if ! $touchScreenCalibrateOnly ; then
+			yesNoPrompt "Rotate the display 180 degrees (y/n)?: "
+			if $yesResponse ; then
+				touch "$setupOptionsDir/rotateDisplay"
+			else
+				rm -f "$setupOptionsDir/rotateDisplay"
+			fi
+
+			yesNoPrompt "Enter custom blanking and dimming devices (y/n)?: "
+			if $yesResponse ; then
+				read -p "enter blanking device (/sys/class/...): " blankDevice
+				if [ "$blankDevice" != "" ]; then
+					echo $blankDevice > "$setupOptionsDir/blank_display_device"
+				else
+					rm -f "$setupOptionsDir/blank_display_device"
+				fi
+				read -p "enter dimming device (/sys/class/...): " dimDevice
+				if [ "$dimDevice" != "" ]; then
+					echo $dimDevice > "$setupOptionsDir/backlight_device"
+				else
+					rm -f "$setupOptionsDir/backlight_device"
+				fi
+			else
+				rm -f "$setupOptionsDir/blank_display_device"
+				rm -f "$setupOptionsDir/backlight_device"
+			fi
+			echo
+			echo "Touch screen calibration requires the ts_calibtate utility from tsLib"
+			echo "  and temporariliy turning off the local GUI. System must reboot twice"
+			if [ "$displayToControl" == "RPI" ]; then
+				echo "RPI display touch screen calibration is optional"
+				echo "But other DSI displays may require it"
+			fi
+			echo
+			yesNoPrompt "Do you want to calibrate the touch screen (y/n)?: "
+		else
+			echo "running touch screen calibtation - will reboot automatically"
+			yesResponse=true
+		fi
+
+		if $yesResponse  ; then
+			tsCalib=$(which ts_calibrate)
+			if [ -z $tsCalib ]; then
+				echo
+				echo "ts_calibrate was not found. Installation requries an internet connection"
+				yesNoPrompt "Download and install it now (y/n)?: "
+				if $yesResponse ; then
+					opkg update
+					opkg install tslib-calibrate
+				fi
+			fi
+			tsCalib=$(which ts_calibrate)
+			if [ ! -z $tsCalib ]; then
+				setupForTsCalibrate=true
+			else
+				logMessage "ts_calibrate was not found - can't run calibration"
+				logMessage "installation will continue WITHOUT calibration !"
+			fi
+		fi
         scriptAction='INSTALL'
     fi
 fi
 
 #### installing
-if [ $scriptAction == 'INSTALL' ] ; then
-
+if [ $scriptAction == 'INSTALL' ]; then
 	# the overlay is needed to automatically discover display type
 	if [ ! -f "$overlayFile" ]; then
 		logMessage "installing RPI Display Backlight overlay"
@@ -154,8 +290,8 @@ if [ $scriptAction == 'INSTALL' ] ; then
 				logMessage "auto-discover display type RPI"
 				displayToControl='RPI'
 			else
-				logMessage "auto-discover display type HDMI 0"
-				displayToControl="HDMI 0"
+				logMessage "auto-discover display type HDMI - requires manual configuration !!!"
+				displayToControl="HDMI"
 			fi
 			echo $displayToControl > "$setupOptionsDir/displayToControl"
 		fi
@@ -165,65 +301,68 @@ if [ $scriptAction == 'INSTALL' ] ; then
 		logMessage "++ ERROR: no display specified - can't continue - install again"
 		exit $EXIT_ERROR
 	fi
+
     case $displayToControl in
         RPI)
             blankDevice="/sys/class/backlight/rpi_backlight/bl_power"
 			dimDevice="/sys/class/backlight/rpi_backlight"
             ;;
-        "HDMI 0")
+        HDMI)
             blankDevice="/sys/class/graphics/fb0/blank"
-            dimDevice=""
-            ;;
-        "HDMI 1")
-            blankDevice="/sys/class/graphics/fb1/blank"
             dimDevice=""
             ;;
 		default)
             blankDevice=""
             dimDevice=""
-			rotate=""
             ;;
     esac
 
-    logMessage "++ Installing display enhancements for display: $displayToControl"
-    # modify config.txt
-    #   make sure hdmi_blanking is enabled
-    #   ditto for disable_overscan
-    #   remove lines with framebuffer - not needed even with RPI display
-    #   remoe duplicate lines
-    sed -e 's/^#* *hdmi_blanking[ =][01]/hdmi_blanking=1/'\
-        -e 's/^#* *disable_overscan[ =][01]/disable_overscan=1/'\
-        -e '/framebuffer/d;' "$configFile" | awk '!NF || !seen[$0]++' > "$configFile.tmp"
+    logMessage "++ Installing display config to /u-boot/config.txt for display: $displayToControl"
 
-    # insert missing lines
-    if [ $(grep -c "disable_overscan=1" "$configFile.tmp") == 0 ] ; then
-        logMessage "adding disable_overscan"
-        echo "" >> "$configFile.tmp"
-        echo "# no overscan" >> "$configFile.tmp"
-        echo "disable_overscan=1" >> "$configFile.tmp"
-    fi
-    if [ $(grep -v "#" "$configFile.tmp" | grep -c "hdmi_blanking=1" ) == 0 ] ; then
-        logMessage "adding hdmi_blanking"
-        echo "" >> "$configFile.tmp"
-        echo "# allow HDMI display to enter low powr mode" >> "$configFile.tmp"
-        echo "hdmi_blanking=1" >> "$configFile.tmp"
-    fi
-	if [ -f "$setupOptionsDir/rotateDisplay" ]; then
-		if [ $(grep -c "#### rotate display 180 degrees" "$configFile.tmp") == 0 ] ; then
-			echo "#### rotate display 180 degrees" >> "$configFile.tmp"
+    #   remove lines with framebuffer - not needed even with RPI display
+	sed -e '/framebuffer/d;' -e '/rotate/d' "$configFile" | awk '!NF || !seen[$0]++' > "$configFile.tmp"
+
+    # remove any previouos lines added by this script
+    sed -i -e "/#### RpiDisplaySetup begin/,/#### end RpiDisplaySetup/d" "$configFile.tmp"
+	
+	# add lines for this display
+    echo "#### RpiDisplaySetup begin" >> "$configFile.tmp"
+	echo "disable_overscan=1" >> "$configFile.tmp"
+	if [ "$displayToControl" == "RPI" ]; then
+		if [ -f "$setupOptionsDir/rotateDisplay" ]; then
 			echo "lcd_rotate=2" >> "$configFile.tmp"
-			echo "display_hdmi_rotate=2" >> "$configFile.tmp"
-			echo "#### end rotate" >> "$configFile.tmp"
+		else
+			echo "lcd_rotate=0" >> "$configFile.tmp"
 		fi
+	# HDMI display
 	else
-		sed -i -e "/#### rotate display 180 degrees/,/#### end rotate/d" "$configFile.tmp"
-	fi
+		read group mode horiz vert freq aspect <<< $(cat "$setupOptionsDir/displayRates")
+
+		echo "# allow HDMI display to enter low powr mode" >> "$configFile.tmp"
+		echo "hdmi_blanking=1" >> "$configFile.tmp"
+		echo "hdmi_force_hotplug=1" >> "$configFile.tmp"
+		echo "hdmi_group=$group" >> "$configFile.tmp"
+		######## echo "ignore_lcd=1" >> "$configFile.tmp"
+		if (( $group != 0 )); then
+			echo "hdmi_mode=$mode" >> "$configFile.tmp"
+			if (( $mode == 87 )); then
+				echo "hdmi_cvt=$horiz $vert $freq $aspect 0 0 0" >> "$configFile.tmp"
+			fi
+		fi
+		if [ -f "$setupOptionsDir/rotateDisplay" ]; then
+			echo "display_hdmi_rotate=2" >> "$configFile.tmp"
+		else
+			echo "display_hdmi_rotate=0" >> "$configFile.tmp"
+		fi
+		fi
+    echo "#### RpiDisplaySetup end" >> "$configFile.tmp"    
+    
     # detect changes
     cmp -s $configFile "$configFile.tmp" > /dev/null
     if (( $? == 1 )); then
+		logMessage "updating config.txt"
         updateActiveFile "$configFile.tmp" "$configFile"
         if $thisFileUpdated ; then
-            logMessage "updating config.txt"
             rebootNeeded=true
         fi
     else
@@ -279,8 +418,53 @@ if [ $scriptAction == 'INSTALL' ] ; then
         restartGui=true
     fi
 
+	if $setupForTsCalibrate ; then
+		echo
+		echo "setting up for touch screen calibration"
+		echo "system will reboot automatically now and again after calibration"
+		touch "$setupOptionsDir/calibrate"
+		# prevent PackageManager from running setup - until calibrate has finished
+		if [ -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL" ]; then
+			touch "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
+		fi
+		touch "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
+        touch $headlessFlag
+		rebootNeeded=true
+		runAgain=true
+		# allow endScript to finish without additional prompts
+		userInteraction=false
+		# endScript won't reboot in this situation so do it here
+		nohup sh -c 'sleep 1; reboot' > /dev/null &
+		 
+	# run ts_calibrate and restore local GUI
+	elif [ -f "$setupOptionsDir/calibrate" ]; then
+		logMessage "running touchscreen calibration"
+		backupActiveFile "/etc/pointercal"
+
+		ts_calibrate
+
+		# save calibration for reinstall after Venus OS update
+		cp "/etc/pointercal" "$setupOptionsDir"
+
+		rebootNeeded=true
+		runAgain=true
+		rm -f "$setupOptionsDir/calibrate"
+
+		# restore do not auto install flag
+		if [ -f "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL" ]; then
+			touch "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
+		else
+			rm -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
+		fi
+		rm "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
+	# restore pointercal from last calibrate pass if any
+	else
+		if [ -f "$setupOptionsDir/pointercal" ]; then
+			updateActiveFile "$setupOptionsDir/pointercal" "/etc/pointercal"
+		fi
+	fi
     # remove the headless flag to allow a local display
-    if [ -e $headlessFlag ] ; then
+    if [ -e $headlessFlag ] && [ ! -f "$setupOptionsDir/calibrate" ]; then
         logMessage "activating local GUI"
         rm -f $headlessFlag
 		rebootNeeded=true
@@ -322,9 +506,10 @@ if [ $scriptAction == 'UNINSTALL' ] ; then
 		touch "/etc/venus/headless"
 		rebootNeeded=true
 	fi
+	logMessage "restoring previous touch screen calibration"
+	restoreActiveFile "/etc/pointercal"
 fi
 
-echo "#### reboot needed $rebootNeeded"
 #thats all folks - SCRIPT EXITS INSIDE THE FUNCTION
 endScript
 
