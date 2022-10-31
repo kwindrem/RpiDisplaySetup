@@ -1,3 +1,6 @@
+v3.1:
+	add display_lcd_rotate
+
 v3.0:
 	add touch screen calibration
 	add HDMI configuration:
