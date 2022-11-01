@@ -330,10 +330,8 @@ if [ $scriptAction == 'INSTALL' ]; then
 	echo "disable_overscan=1" >> "$configFile.tmp"
 	if [ "$displayToControl" == "RPI" ]; then
 		if [ -f "$setupOptionsDir/rotateDisplay" ]; then
-			echo "lcd_rotate=2" >> "$configFile.tmp"
 			echo "display_lcd_rotate=2" >> "$configFile.tmp"
 		else
-			echo "lcd_rotate=0" >> "$configFile.tmp"
 			echo "display_lcd_rotate=0" >> "$configFile.tmp"
 		fi
 	# HDMI display
