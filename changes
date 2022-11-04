@@ -1,3 +1,6 @@
+v3.3:
+	add choice of lcd_rotate or display_lcd_rotate
+
 v3.2:
 	removed lcd_rotate
 		it seems having bot it and display_lcd_rotate results in no rotation

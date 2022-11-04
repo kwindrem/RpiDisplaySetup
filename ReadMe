@@ -3,7 +3,7 @@ and also for HDMI display on HDMI 0
 It may also work on other DSI displays with some or all functionality
 
 VenusOS already includes much of the support for the RPI display
-    the touch screen calibration included in the image appears to work
+    the touch screen calibration included in the image appears to SOMETIMES work
     with the RPI display even if the display is rotated 180 degrees
     the backlight kernal module appears to be in place
 
@@ -19,7 +19,7 @@ Do NOT install this package if you do NOT want a local display (running Venus "h
 Uninstalling this package will disable the local GUI !
 
 This script is designed to run without any command line interaction e.g., from the Package Manager in the GUI
-	but ONLY for the RPI display
+	but ONLY for the RPI display and ONLY if the display rotation is not needed.
 	Without the command line, this script discovers the RPI display automatically.
 	The package must be partially installed, then Venus rebooted in order to discover the display type
 		and finish the installation.
@@ -32,6 +32,12 @@ The script can also be run from the command line.
 
 	Files for these custom devices are stored in /data/setupOptions/RpiDisplaySetup and can be edited manually.
 	If present, these files overwrite the display type selection
+
+There are two ways to rotate the RPI display: lcd_rotate and display_lcd_rotate.
+Depending on the display and/or platform (RPI 2, 3, 4) one rotate mechanism may work while the other may not.
+The script asks for which one to use. The first also rotates the touch interface while the second does not.
+For this reason, try the normal one first and if that does not work,
+select the second then run the touch screen calibration
 
 Touch screen calibraiton can be run from the command line.
 The script will install ts_calibrate from the internet if it is not present on the system.

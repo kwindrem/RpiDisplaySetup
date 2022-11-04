@@ -203,8 +203,28 @@ if [ $scriptAction == 'NONE' ] ; then
 			yesNoPrompt "Rotate the display 180 degrees (y/n)?: "
 			if $yesResponse ; then
 				touch "$setupOptionsDir/rotateDisplay"
+
+				if $hdmiConfig ; then
+					touch "$setupOptionsDir/rotateDisplay"
+					rm -f "$setupOptionsDir/altRotateDisplay"
+				else
+					echo "displays may respond to one of two rotate commands"
+					echo "lcd_rotate rotates most DSI displays and also rotates the touch calibration"
+					echo "if the display does not rotate run setup again and choose the alternate command here"
+					yesNoPrompt "choose the alternate rotate command (display_lcd_rotate) (y/n)?: "
+					if $yesResponse ; then
+						touch "$setupOptionsDir/altRotateDisplay"
+						rm -f "$setupOptionsDir/rotateDisplay"
+						echo "the alternate rotate command does not rotate the touch screen"
+						echo "you must run the touch screen calibration"
+					else
+						touch "$setupOptionsDir/rotateDisplay"
+						rm -f "$setupOptionsDir/altRotateDisplay"
+					fi
+				fi
 			else
 				rm -f "$setupOptionsDir/rotateDisplay"
+				rm -f "$setupOptionsDir/altRotateDisplay"
 			fi
 
 			yesNoPrompt "Enter custom blanking and dimming devices (y/n)?: "
@@ -287,19 +307,19 @@ if [ $scriptAction == 'INSTALL' ]; then
 		# with overlay in place auto-discover display type		
 		else
 			if [ -e /sys/class/backlight/rpi_backlight ]; then
-				logMessage "auto-discover display type RPI"
+				logMessage "auto-discovered display type RPI"
 				displayToControl='RPI'
 			else
-				logMessage "auto-discover display type HDMI - requires manual configuration !!!"
-				displayToControl="HDMI"
+				logMessage "RPI display not detected - HDMI requires manual configuration !!!"
+				displayToControl=""
 			fi
 			echo $displayToControl > "$setupOptionsDir/displayToControl"
 		fi
     fi
 
 	if [ -z "$displayToControl" ]; then
-		logMessage "++ ERROR: no display specified - can't continue - install again"
-		exit $EXIT_ERROR
+		logMessage "++ ERROR: no display specified - can't continue - run install from command line"
+		exit $EXIT_OPTIONS_NOT_SET
 	fi
 
     case $displayToControl in
@@ -330,9 +350,9 @@ if [ $scriptAction == 'INSTALL' ]; then
 	echo "disable_overscan=1" >> "$configFile.tmp"
 	if [ "$displayToControl" == "RPI" ]; then
 		if [ -f "$setupOptionsDir/rotateDisplay" ]; then
+			echo "lcd_rotate=2" >> "$configFile.tmp"
+		elif [ -f "$setupOptionsDir/altRotateDisplay" ]; then
 			echo "display_lcd_rotate=2" >> "$configFile.tmp"
-		else
-			echo "display_lcd_rotate=0" >> "$configFile.tmp"
 		fi
 	# HDMI display
 	else
@@ -351,10 +371,8 @@ if [ $scriptAction == 'INSTALL' ]; then
 		fi
 		if [ -f "$setupOptionsDir/rotateDisplay" ]; then
 			echo "display_hdmi_rotate=2" >> "$configFile.tmp"
-		else
-			echo "display_hdmi_rotate=0" >> "$configFile.tmp"
 		fi
-		fi
+	fi
     echo "#### RpiDisplaySetup end" >> "$configFile.tmp"    
     
     # detect changes
