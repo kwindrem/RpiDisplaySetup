@@ -343,8 +343,8 @@ if [ $scriptAction == 'INSTALL' ]; then
 	sed -e '/framebuffer/d;' -e '/rotate/d' "$configFile" | awk '!NF || !seen[$0]++' > "$configFile.tmp"
 
     # remove any previouos lines added by this script
-    sed -i -e "/#### RpiDisplaySetup begin/,/#### end RpiDisplaySetup/d" "$configFile.tmp"
-	
+    sed -i -e "/#### RpiDisplaySetup begin/,/#### RpiDisplaySetup end/d" "$configFile.tmp"
+
 	# add lines for this display
     echo "#### RpiDisplaySetup begin" >> "$configFile.tmp"
 	echo "disable_overscan=1" >> "$configFile.tmp"

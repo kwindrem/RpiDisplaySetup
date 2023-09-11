@@ -1,3 +1,6 @@
+v3.4:
+	fixed: CANbus config removed from config.txt by RpiDisplaySetup install !
+
 v3.3:
 	add choice of lcd_rotate or display_lcd_rotate
 
