@@ -58,7 +58,12 @@ If this is needed, either do not use RpiDisplaySetup or manually edit config.txt
 	AFTER running RpiDisplaySetup' setup script
 	config.txt is not overwritten by Venus OS updates so any modifications you make should persist.
 
-Setup:
+Installation:
 
-The easiest way to install this or other of my packages is to first install SetupHelper (v4.0 or later),
-then use Package Manager from the GUI. Refer to the SetupHelper ReadMe for instructions.
+RpiDisplaySetup requires that SetupHelper is installed first.
+
+The easiest way to install RpiDisplaySetup is to do a "blind install" of SetupHelper
+	and then add the RpiDisplaySetup package via the PackageManager menus.
+
+Refer to the SetupHelper ReadMe for instructions and for other install options:
+	https://github.com/kwindrem/SetupHelper
