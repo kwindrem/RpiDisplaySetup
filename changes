@@ -1,3 +1,6 @@
+v3.7:
+	fixed: no file sets error created in v3.6
+
 v3.6:
 	allow installation even if GUI v1 is not present
 
