@@ -379,12 +379,10 @@ if [ $scriptAction == 'INSTALL' ]; then
     cmp -s $configFile "$configFile.tmp" > /dev/null
     if (( $? == 1 )); then
 		logMessage "updating config.txt"
-        updateActiveFile "$configFile.tmp" "$configFile"
-        if $thisFileUpdated ; then
-            rebootNeeded=true
-        fi
-    else
-        rm $configFile.tmp
+        mv -f "$configFile.tmp" "$configFile"
+		rebootNeeded=true
+	else
+		rm -f $configFile.tmp
     fi
 
 	# use custom blank device file if provided
@@ -457,6 +455,8 @@ if [ $scriptAction == 'INSTALL' ]; then
 	# run ts_calibrate and restore local GUI
 	elif [ -f "$setupOptionsDir/calibrate" ]; then
 		logMessage "running touchscreen calibration"
+		# ts_calibrate modifies /etc/pointercal internally
+		#	make backup original first for uninstall
 		backupActiveFile "/etc/pointercal"
 
 		ts_calibrate

@@ -1,3 +1,9 @@
+v3.8:
+	fixed: config.txt update fails sometimes
+		replaced updateActive file with a move command like all other
+		packages that modify config.txt
+	add file sets for Venus OS versions v3.14 - 3.22 and v3.30 betas through v3.30~17
+
 v3.7:
 	fixed: no file sets error created in v3.6
 
