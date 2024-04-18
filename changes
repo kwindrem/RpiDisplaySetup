@@ -1,3 +1,6 @@
+v3.10:
+	reverted to v7.17 HelperResources
+
 v3.9:
 	switch to patch for installs
 
