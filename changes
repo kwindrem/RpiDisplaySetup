@@ -1,3 +1,6 @@
+v3.9:
+	switch to patch for installs
+
 v3.8:
 	fixed: config.txt update fails sometimes
 		replaced updateActive file with a move command like all other
