@@ -1,3 +1,9 @@
+v3.13:
+	add support for v3.50~11
+	backlight setting incorrect for Raspberry PI prior to v2.73
+		so removed the customization for start-gui.sh since that is fixed now
+		in stock code
+
 v3.12:
 	remove local copy of HelperResources
 
