@@ -33,6 +33,9 @@ The script can also be run from the command line.
 	Files for these custom devices are stored in /data/setupOptions/RpiDisplaySetup and can be edited manually.
 	If present, these files overwrite the display type selection
 
+	To run the script from command line use following command:
+		/data/RpiDisplaySetup/setup
+
 There are two ways to rotate the RPI display: lcd_rotate and display_lcd_rotate.
 Depending on the display and/or platform (RPI 2, 3, 4) one rotate mechanism may work while the other may not.
 The script asks for which one to use. The first also rotates the touch interface while the second does not.
