@@ -25,6 +25,9 @@ This script is designed to run without any command line interaction e.g., from t
 		and finish the installation.
 	Note: an HDMI display can not be auto-discovered. The setup script must be run from the command line.
 
+If you need to run setup from the command line:
+	/data/RpiDisplaySetup/setup
+
 The script can also be run from the command line.
 	The user is prompted for display type: RPI, HDMI, skipping the auto-discovery mechanism.
 

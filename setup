@@ -41,6 +41,7 @@ dimDeviceFile=/etc/venus/backlight_device
 packageLogFile=""
 
 setupForTsCalibrate=false
+doTsCalilb=false
 
 
 #### following line incorporates helper resources into this script
@@ -72,6 +73,7 @@ if [ $scriptAction == 'NONE' ] ; then
         echo "    (C) skip display configuration and run touch screen calibration only"
         echo
 		customControl=false
+		rpiConfig=false
 		hdmiConfig=false
 		touchScreenCalibrateOnly=false
         while true ; do
@@ -79,6 +81,7 @@ if [ $scriptAction == 'NONE' ] ; then
             case $display in
                 [rR]*)
                     echo "RPI" > $setupOptionsDir/displayToControl
+					rpiConfig=true
                     break
                     ;;
                 [hH]*)
@@ -88,6 +91,7 @@ if [ $scriptAction == 'NONE' ] ; then
                     ;;
                 [cC]*)
 					touchScreenCalibrateOnly=true
+					doTsCalilb=true
                     break
                     ;;
            esac
@@ -192,12 +196,10 @@ if [ $scriptAction == 'NONE' ] ; then
 				esac
 			done
 			echo "$hdmiGroup $hdmiMode $horizontalResolution $verticalResolution $refreshRate $aspect" > "$setupOptionsDir/displayRates"
-		fi
+		fi	# end if $hdmiConfig
 
-
-		if ! $touchScreenCalibrateOnly ; then
-			yesNoPrompt "Rotate the display 180 degrees (y/n)?: "
-			if $yesResponse ; then
+		if $rpiConfig || $hdmiConfig ; then
+			if yesNoPrompt "Rotate the display 180 degrees (y/n)?: " ; then
 				touch "$setupOptionsDir/rotateDisplay"
 
 				if $hdmiConfig ; then
@@ -207,8 +209,7 @@ if [ $scriptAction == 'NONE' ] ; then
 					echo "displays may respond to one of two rotate commands"
 					echo "lcd_rotate rotates most DSI displays and also rotates the touch calibration"
 					echo "if the display does not rotate run setup again and choose the alternate command here"
-					yesNoPrompt "choose the alternate rotate command (display_lcd_rotate) (y/n)?: "
-					if $yesResponse ; then
+					if yesNoPrompt "choose the alternate rotate command (display_lcd_rotate) (y/n)?: " ; then
 						touch "$setupOptionsDir/altRotateDisplay"
 						rm -f "$setupOptionsDir/rotateDisplay"
 						echo "the alternate rotate command does not rotate the touch screen"
@@ -223,8 +224,7 @@ if [ $scriptAction == 'NONE' ] ; then
 				rm -f "$setupOptionsDir/altRotateDisplay"
 			fi
 
-			yesNoPrompt "Enter custom blanking and dimming devices (y/n)?: "
-			if $yesResponse ; then
+			if yesNoPrompt "Enter custom blanking and dimming devices (y/n)?: " ; then
 				read -p "enter blanking device (/sys/class/...): " blankDevice
 				if [ "$blankDevice" != "" ]; then
 					echo $blankDevice > "$setupOptionsDir/blank_display_device"
@@ -249,19 +249,18 @@ if [ $scriptAction == 'NONE' ] ; then
 				echo "But other DSI displays may require it"
 			fi
 			echo
-			yesNoPrompt "Do you want to calibrate the touch screen (y/n)?: "
-		else
-			echo "running touch screen calibtation - will reboot automatically"
-			yesResponse=true
-		fi
+			if yesNoPrompt "Do you want to calibrate the touch screen (y/n)?: " ; then
+				doTsCalilb=true
+			fi
+			scriptAction='INSTALL'
+		fi	# end if ! $rpiConfig || $hdmiConfig
 
-		if $yesResponse  ; then
+		if $doTsCalilb ; then
 			tsCalib=$(which ts_calibrate)
 			if [ -z $tsCalib ]; then
 				echo
 				echo "ts_calibrate was not found. Installation requries an internet connection"
-				yesNoPrompt "Download and install it now (y/n)?: "
-				if $yesResponse ; then
+				if yesNoPrompt "Download and install it now (y/n)?: " ; then
 					opkg update
 					opkg install tslib-calibrate
 				fi
@@ -269,12 +268,12 @@ if [ $scriptAction == 'NONE' ] ; then
 			tsCalib=$(which ts_calibrate)
 			if [ ! -z $tsCalib ]; then
 				setupForTsCalibrate=true
+				echo "running touch screen calibtation - will reboot automatically"
 			else
 				logMessage "ts_calibrate was not found - can't run calibration"
 				logMessage "installation will continue WITHOUT calibration !"
 			fi
 		fi
-        scriptAction='INSTALL'
     fi
 fi
 
@@ -426,61 +425,61 @@ if [ $scriptAction == 'INSTALL' ]; then
         rm -f "$dimDeviceFile"
         restartGui=true
     fi
+fi	#end if [ $scriptAction == 'INSTALL' ]
 
-	if $setupForTsCalibrate ; then
-		echo
-		echo "setting up for touch screen calibration"
-		echo "system will reboot automatically now and again after calibration"
-		touch "$setupOptionsDir/calibrate"
-		# prevent PackageManager from running setup - until calibrate has finished
-		if [ -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL" ]; then
-			touch "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
-		fi
-		touch "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
-        touch $headlessFlag
-		rebootNeeded=true
-		runAgain=true
-		# allow endScript to finish without additional prompts
-		userInteraction=false
-		# endScript won't reboot in this situation so do it here
-		nohup sh -c 'sleep 1; reboot' > /dev/null &
-		 
-	# run ts_calibrate and restore local GUI
-	elif [ -f "$setupOptionsDir/calibrate" ]; then
-		logMessage "running touchscreen calibration"
-		# ts_calibrate modifies /etc/pointercal internally
-		#	make backup original first for uninstall
-		backupActiveFile "/etc/pointercal"
-
-		ts_calibrate
-
-		# save calibration for reinstall after Venus OS update
-		cp "/etc/pointercal" "$setupOptionsDir"
-
-		rebootNeeded=true
-		runAgain=true
-		rm -f "$setupOptionsDir/calibrate"
-
-		# restore do not auto install flag
-		if [ -f "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL" ]; then
-			touch "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
-		else
-			rm -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
-		fi
-		rm "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
-	# restore pointercal from last calibrate pass if any
-	else
-		if [ -f "$setupOptionsDir/pointercal" ]; then
-			updateActiveFile "$setupOptionsDir/pointercal" "/etc/pointercal"
-		fi
+if $setupForTsCalibrate ; then
+	echo
+	echo "setting up for touch screen calibration"
+	echo "system will reboot automatically now and again after calibration"
+	touch "$setupOptionsDir/calibrate"
+	# prevent PackageManager from running setup - until calibrate has finished
+	if [ -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL" ]; then
+		touch "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
 	fi
-    # remove the headless flag to allow a local display
-    if [ -e $headlessFlag ] && [ ! -f "$setupOptionsDir/calibrate" ]; then
-        logMessage "activating local GUI"
-        rm -f $headlessFlag
-		rebootNeeded=true
-    fi
+	# allow endScript to finish without additional prompts and run again after reboot
+	touch "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
+	touch $headlessFlag
+	rebootNeeded=true
+	runAgain=true
+	userInteraction=false
+	scriptAction='INSTALL'
+	 
+# run ts_calibrate and restore local GUI
+elif [ -f "$setupOptionsDir/calibrate" ]; then
+	logMessage "running touchscreen calibration"
+	# ts_calibrate modifies /etc/pointercal internally
+	#	make backup original first for uninstall
+	backupActiveFile "/etc/pointercal"
+
+	ts_calibrate
+
+	# save calibration for reinstall after Venus OS update
+	cp "/etc/pointercal" "$setupOptionsDir"
+
+	rebootNeeded=true
+	runAgain=true
+	rm -f "$setupOptionsDir/calibrate"
+
+	# restore do not auto install flag
+	if [ -f "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL" ]; then
+		touch "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
+	else
+		rm -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
+	fi
+	rm "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
+# restore pointercal from last calibrate pass if any
+else
+	if [ -f "$setupOptionsDir/pointercal" ]; then
+		updateActiveFile "$setupOptionsDir/pointercal" "/etc/pointercal"
+	fi
 fi
+# remove the headless flag to allow a local display
+if [ $scriptAction == 'INSTALL' ] && [ -e $headlessFlag ] && [ ! -f "$setupOptionsDir/calibrate" ]; then
+	logMessage "activating local GUI"
+	rm -f $headlessFlag
+	rebootNeeded=true
+fi
+
 #### uninstalling - check scriptAction again
 # if an install step failed package needs to be removed
 if [ $scriptAction == 'UNINSTALL' ] ; then
@@ -523,4 +522,3 @@ fi
 
 #thats all folks - SCRIPT EXITS INSIDE THE FUNCTION
 endScript
-
