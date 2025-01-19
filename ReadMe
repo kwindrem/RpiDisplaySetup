@@ -42,11 +42,15 @@ The script asks for which one to use. The first also rotates the touch interface
 For this reason, try the normal one first and if that does not work,
 select the second then run the touch screen calibration
 
-Touch screen calibraiton can be run from the command line.
+Touch screen calibraiton can be run from the setup script.
 The script will install ts_calibrate from the internet if it is not present on the system.
-Then the script will disable the GUI and reboot the system and run ts_calibrate,
-then will reboot the system again to restore the GUI.
-The display should be producing the proper image BEFORE running touch screen calibration.
+For firmware prior to v3.60 (betas included):
+	the script will disable the GUI
+	reboot the system and run ts_calibrate
+	then will reboot the system again to restore the GUI.
+Starting with firmware v3.60~3, touch screen calibraiton does not require a reboot. The script will:
+	stop the gui service ('gui' or 'start-gui', run ts_calibrate then restart the GUI
+	If other setup changes are made, the system WILL reboot, run ts_calibrate then restart the GUI
 
 This script will also be called from reinstallMods to reinstall functionality after a Venus update
 

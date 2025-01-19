@@ -30,6 +30,7 @@
 # Dimming the RPI display requires the rpi-backlight overlay
 # A reboot is required to activate the overlay and the config.txt changes
 
+
 headlessFlag=/etc/venus/headless
 restartGui=false
 overlayFile="/u-boot/overlays/rpi-backlight.dtbo"
@@ -40,13 +41,24 @@ dimDeviceFile=/etc/venus/backlight_device
 # no log file for this package
 packageLogFile=""
 
-setupForTsCalibrate=false
-doTsCalilb=false
+doTsCalibrate=false
+deferTsCalibrate=false
+runTsCalibrateNow=false
 
 
 #### following line incorporates helper resources into this script
 source "/data/SetupHelper/HelperResources/IncludeHelpers"
 #### end of lines to include helper resources
+
+# note: the headless flag is no longer used starting with v3.60 betas
+versionStringToNumber "v3.60~3"
+if (( $venusVersionNumber >= $versionNumber )); then
+	logMessage "using new GUI control procedures (headless flag no longer used)"
+	useNewGuiProcedures=true
+else
+	useNewGuiProcedures=false
+fi
+
 
 #### running manually and OK to proceed - prompt for input
 if [ $scriptAction == 'NONE' ] ; then
@@ -60,7 +72,9 @@ if [ $scriptAction == 'NONE' ] ; then
     echo "  with the backlight still on for HDMI displays that do not support standby"
     echo "Display brighness controll is enabled only for the RPI touchscreen"
     echo
-    echo "Uninstalling disables the local display (sets headless)"
+	if ! $useNewGuiProcedures ; then
+		echo "Uninstalling disables the local display (sets headless)"
+	fi
 
     standardActionPrompt 'MORE_PROMPTS'
     # PROMPT is left over from a previous version of SetupHelper
@@ -75,7 +89,6 @@ if [ $scriptAction == 'NONE' ] ; then
 		customControl=false
 		rpiConfig=false
 		hdmiConfig=false
-		touchScreenCalibrateOnly=false
         while true ; do
             read -p "Choose a display from the list above (R / H / C): " display
             case $display in
@@ -90,8 +103,7 @@ if [ $scriptAction == 'NONE' ] ; then
                     break
                     ;;
                 [cC]*)
-					touchScreenCalibrateOnly=true
-					doTsCalilb=true
+					doTsCalibrate=true
                     break
                     ;;
            esac
@@ -250,28 +262,27 @@ if [ $scriptAction == 'NONE' ] ; then
 			fi
 			echo
 			if yesNoPrompt "Do you want to calibrate the touch screen (y/n)?: " ; then
-				doTsCalilb=true
+				doTsCalibrate=true
 			fi
 			scriptAction='INSTALL'
 		fi	# end if ! $rpiConfig || $hdmiConfig
 
-		if $doTsCalilb ; then
+		if $doTsCalibrate ; then
 			tsCalib=$(which ts_calibrate)
 			if [ -z $tsCalib ]; then
 				echo
 				echo "ts_calibrate was not found. Installation requries an internet connection"
 				if yesNoPrompt "Download and install it now (y/n)?: " ; then
+					logMessage "installing ts_calibrate"
 					opkg update
 					opkg install tslib-calibrate
 				fi
 			fi
 			tsCalib=$(which ts_calibrate)
-			if [ ! -z $tsCalib ]; then
-				setupForTsCalibrate=true
-				echo "running touch screen calibtation - will reboot automatically"
-			else
+			if [ -z $tsCalib ]; then
 				logMessage "ts_calibrate was not found - can't run calibration"
 				logMessage "installation will continue WITHOUT calibration !"
+				doTsCalibrate=false
 			fi
 		fi
     fi
@@ -297,6 +308,7 @@ if [ $scriptAction == 'INSTALL' ]; then
 		if $waitForOverlay ; then
 			logMessage "install options have not been set - installng overlay and rebooting for auto discovery"
 			runAgain=true
+			rebootNeeded=true
 			# stop setup now and come back later to finish
 			endScript
 		# with overlay in place auto-discover display type		
@@ -426,47 +438,88 @@ if [ $scriptAction == 'INSTALL' ]; then
         restartGui=true
     fi
 fi	#end if [ $scriptAction == 'INSTALL' ]
-
-if $setupForTsCalibrate ; then
-	echo
-	echo "setting up for touch screen calibration"
-	echo "system will reboot automatically now and again after calibration"
-	touch "$setupOptionsDir/calibrate"
-	# prevent PackageManager from running setup - until calibrate has finished
-	if [ -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL" ]; then
-		touch "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
-	fi
-	# allow endScript to finish without additional prompts and run again after reboot
-	touch "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
-	touch $headlessFlag
-	rebootNeeded=true
-	runAgain=true
-	userInteraction=false
-	scriptAction='INSTALL'
-	 
-# run ts_calibrate and restore local GUI
+if $doTsCalibrate ; then
+	# defer calibrate until next pass
+	if ! $useNewGuiProcedures || $rebootNeeded ; then
+		echo
+		logMessage "system will reboot for calibration - please wait for targets to appear"
+		touch "$setupOptionsDir/calibrate"
+		# prevent PackageManager from running setup - until calibrate has finished
+		if [ -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL" ]; then
+			rm -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
+			touch "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
+		fi
+		# allow script to finish without additional prompts and run again after reboot
+		# force an install to allow endScript to reboot the system
+		scriptAction='INSTALL'
+		rebootNeeded=true
+		runAgain=true
+		userInteraction=false
+		if ! $useNewGuiProcedures ; then
+			touch $headlessFlag
+		fi
+		doTsCalibrate=false
+	 fi
+# if calibrate was deferred, do it now
 elif [ -f "$setupOptionsDir/calibrate" ]; then
-	logMessage "running touchscreen calibration"
+	doTsCalibrate=true
+fi
+
+# run ts_calibrate and restore local GUI
+if $doTsCalibrate ; then
+	# shut down the GUI before running calabration
+	restartGuiService=false
+	restartStartGuiService=false
+	if [ $( svstat "/service/gui" |awk '{print $2'} ) == "up" ]; then
+		logMessage "stopping gui service"
+		svc -d "/service/gui"
+		sleep 1
+		restartGuiService=true
+	fi
+	if [ $( svstat "/service/start-gui" |awk '{print $2'} ) == "up" ]; then
+		logMessage "stopping start-gui service"
+		svc -d "/service/start-gui"
+		sleep 1
+		restartStartGuiService=true
+	fi
+
 	# ts_calibrate modifies /etc/pointercal internally
 	#	make backup original first for uninstall
 	backupActiveFile "/etc/pointercal"
 
+	logMessage "running touchscreen calibration"
 	ts_calibrate
 
 	# save calibration for reinstall after Venus OS update
 	cp "/etc/pointercal" "$setupOptionsDir"
 
-	rebootNeeded=true
-	runAgain=true
+	# new GUI can be restarted without rebooting - just restart the service
+	if $useNewGuiProcedures ; then
+		if $restartGuiService ; then
+			logMessage "starting gui service"
+			svc -u "/service/gui"
+		fi
+		if $restartStartGuiService ; then
+			logMessage "starting start-gui service"
+			svc -u "/service/start-gui"
+		fi
+		if [ $scriptAction == 'NONE' ]; then
+			scriptAction='EXIT'
+		fi
+	else
+		rebootNeeded=true
+		runAgain=true
+	fi
 	rm -f "$setupOptionsDir/calibrate"
 
 	# restore do not auto install flag
 	if [ -f "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL" ]; then
 		touch "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
+		rm -f "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
 	else
 		rm -f "$setupOptionsDir/DO_NOT_AUTO_INSTALL"
 	fi
-	rm "$setupOptionsDir/RESTORE_DO_NOT_AUTO_INSTALL"
+
 # restore pointercal from last calibrate pass if any
 else
 	if [ -f "$setupOptionsDir/pointercal" ]; then
@@ -474,7 +527,7 @@ else
 	fi
 fi
 # remove the headless flag to allow a local display
-if [ $scriptAction == 'INSTALL' ] && [ -e $headlessFlag ] && [ ! -f "$setupOptionsDir/calibrate" ]; then
+if ! $useNewGuiProcedures && [ $scriptAction == 'INSTALL' ] && [ -e $headlessFlag ] && [ ! -f "$setupOptionsDir/calibrate" ]; then
 	logMessage "activating local GUI"
 	rm -f $headlessFlag
 	rebootNeeded=true
@@ -509,7 +562,7 @@ if [ $scriptAction == 'UNINSTALL' ] ; then
 		rebootNeeded=true
 	fi
 
-	if [ ! -f "/etc/venus/headless" ]; then
+	if ! $useNewGuiProcedures && [ ! -f "/etc/venus/headless" ]; then
 		echo
 		logMessage "DISABLING LOCAL GUI - reverts to console"
 		echo

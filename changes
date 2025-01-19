@@ -1,3 +1,6 @@
+v3.15:
+	fixed: touch screen calibration no longer works starting with v3.60
+
 v3.14:
 	fixed: touch screen calibrate only changes config.txt
 	add comment to the ReadMe about running setup from the command line
