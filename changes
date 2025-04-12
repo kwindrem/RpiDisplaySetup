@@ -1,3 +1,7 @@
+v3.16:
+	going back to gui-v1 control via headless
+	fixed: ts_calibrate doesn't always install (opkg feed release/candidate)
+
 v3.15:
 	fixed: touch screen calibration no longer works starting with v3.60
 

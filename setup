@@ -51,13 +51,14 @@ source "/data/SetupHelper/HelperResources/IncludeHelpers"
 #### end of lines to include helper resources
 
 # note: the headless flag is no longer used starting with v3.60 betas
-versionStringToNumber "v3.60~3"
-if (( $venusVersionNumber >= $versionNumber )); then
-	logMessage "using new GUI control procedures (headless flag no longer used)"
-	useNewGuiProcedures=true
-else
-	useNewGuiProcedures=false
-fi
+# DISABLED FOR NOW pending expected behavior from Victron
+# more recent v3.60 betas have a headless flag and the display is not released simply by stopping the gui service
+useNewGuiProcedures=false
+####versionStringToNumber "v3.60~3"
+####if (( $venusVersionNumber >= $versionNumber )); then
+####	logMessage "using new GUI control procedures (headless flag no longer used)"
+####	useNewGuiProcedures=true
+####fi
 
 
 #### running manually and OK to proceed - prompt for input
@@ -274,8 +275,19 @@ if [ $scriptAction == 'NONE' ] ; then
 				echo "ts_calibrate was not found. Installation requries an internet connection"
 				if yesNoPrompt "Download and install it now (y/n)?: " ; then
 					logMessage "installing ts_calibrate"
+					if [[ $venusVersion == *~* ]]; then
+						feed="candidate"
+					else
+						feed="release"
+					fi
+					# need to make sure opkg has the right config
+					# save original, make change and restore after opkg runs
+					mv /etc/opkg/venus.conf /etc/opkg/venus.conf.save
+					
+					ln -sf /usr/share/venus-feed-configs/opkg-$feed.conf /etc/opkg/venus.conf
 					opkg update
 					opkg install tslib-calibrate
+					mv -f /etc/opkg/venus.conf.save /etc/opkg/venus.conf
 				fi
 			fi
 			tsCalib=$(which ts_calibrate)
@@ -455,9 +467,7 @@ if $doTsCalibrate ; then
 		rebootNeeded=true
 		runAgain=true
 		userInteraction=false
-		if ! $useNewGuiProcedures ; then
-			touch $headlessFlag
-		fi
+		touch $headlessFlag
 		doTsCalibrate=false
 	 fi
 # if calibrate was deferred, do it now
@@ -527,10 +537,14 @@ else
 	fi
 fi
 # remove the headless flag to allow a local display
-if ! $useNewGuiProcedures && [ $scriptAction == 'INSTALL' ] && [ -e $headlessFlag ] && [ ! -f "$setupOptionsDir/calibrate" ]; then
+if [ $scriptAction == 'INSTALL' ] && [ -e $headlessFlag ] && [ ! -f "$setupOptionsDir/calibrate" ]; then
 	logMessage "activating local GUI"
 	rm -f $headlessFlag
-	rebootNeeded=true
+	if $useNewGuiProcedures ; then
+		restartStartGuiService=true
+	else
+		rebootNeeded=true
+	fi
 fi
 
 #### uninstalling - check scriptAction again
